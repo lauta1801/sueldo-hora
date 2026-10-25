@@ -201,6 +201,17 @@ details.more[open]{display:grid;gap:12px}
 .tarifa .vals dd{margin:0;font-family:var(--f-mono);font-size:13.5px;white-space:nowrap}
 @media (max-width:360px){.tarifa .vals{grid-template-columns:auto minmax(0,1fr)}}
 .tarifa.vig{box-shadow:inset 4px 0 0 var(--green);padding-left:12px}
+.dlist{display:grid}
+.drow{display:grid;grid-template-columns:minmax(0,1fr) 108px 66px;gap:10px;align-items:center;padding:9px 0;border-bottom:1px dashed var(--line)}
+.drow:last-child{border-bottom:0}
+.dleft{display:grid;gap:2px;min-width:0}
+.dname{font-size:15.5px;font-weight:600}
+.dtag{font-size:12.5px;color:var(--muted)}
+.drow .input{min-height:42px}
+.drow .btn-ghost{padding:0 4px;min-height:40px;font-size:14px}
+.calc{display:grid;gap:10px;padding:12px;border-radius:10px;background:var(--surface-2);border:1px solid var(--line)}
+.calc h3{margin:0}
+.calc .preview{background:var(--surface)}
 .banner{display:grid;gap:10px;padding:14px 16px;border-radius:12px;border:1.5px solid var(--warn);background:var(--surface)}
 .copybox{width:100%;min-height:160px;font-family:var(--f-mono);font-size:12px}
 
@@ -266,7 +277,13 @@ const DEFAULTS = {
   modo: 'salida',          // 'salida': las extras empiezan a la hora de salida del turno | 'total': después de 8 h trabajadas
   tolerancia: 0, bloqueTarde: 1, redondeo: 1, pausa: 0,
   recargoComun: 50, recargoEspecial: 100,
-  aportes: 17, sindical: 0,
+  descuentos: [
+    { id: 'jub', nombre: 'Jubilación', pct: 11, ley: true },
+    { id: 'pami', nombre: 'Ley 19.032 (PAMI)', pct: 3, ley: true },
+    { id: 'os', nombre: 'Obra social', pct: 3, ley: true },
+    { id: 'sind', nombre: 'Cuota sindical', pct: 3, conv: true },
+    { id: 'sep', nombre: 'Seguro de sepelio', pct: 1.5, conv: true }
+  ],
   periodo: 'mensual', diaCobro: 4,
   ingreso: ''
 };
@@ -405,7 +422,7 @@ try { const u = JSON.parse(localStorage.getItem(UI_KEY) || 'null'); if (u && ['h
 function AJ() {
   const s = state.ajustes || {}, a = { ...DEFAULTS };
   for (const k of Object.keys(DEFAULTS)) if (s[k] !== undefined && s[k] !== null && s[k] !== '') a[k] = s[k];
-  for (const k of ['horasJornada', 'tolerancia', 'bloqueTarde', 'redondeo', 'pausa', 'recargoComun', 'recargoEspecial', 'aportes', 'sindical', 'diaCobro']) {
+  for (const k of ['horasJornada', 'tolerancia', 'bloqueTarde', 'redondeo', 'pausa', 'recargoComun', 'recargoEspecial', 'diaCobro']) {
     const n = +a[k]; a[k] = Number.isFinite(n) ? n : DEFAULTS[k];
   }
   if (a.horasJornada <= 0) a.horasJornada = 8;
@@ -415,6 +432,12 @@ function AJ() {
   if (!['salida', 'total'].includes(a.modo)) a.modo = 'salida';
   if (!['mensual', 'quincenal'].includes(a.periodo)) a.periodo = 'mensual';
   if (!isISO(a.ingreso)) a.ingreso = primeraFecha() || '';
+  const ds = Array.isArray(s.descuentos) ? s.descuentos : DEFAULTS.descuentos;
+  a.descuentos = ds.filter(d => d && typeof d === 'object').slice(0, 12).map((d, i) => ({
+    id: String(d.id || 'd' + i).slice(0, 24), nombre: String(d.nombre || 'Descuento').slice(0, 40),
+    pct: Math.max(0, Math.min(60, Number.isFinite(+d.pct) ? +d.pct : 0)), ley: !!d.ley, conv: !!d.conv
+  }));
+  a.descTotal = a.descuentos.reduce((t, d) => t + d.pct, 0);
   return a;
 }
 function primeraFecha() { let m = null; for (const t of Object.values(state.turnos)) if (!m || t.fecha < m) m = t.fecha; return m; }
@@ -512,7 +535,7 @@ function calcDia(ts, aj, tl) {
     if (r.tar.estimado) D.estimado = true;
   }
   if (D.trabajado && D.tar) { D.comida = D.tar.comida; D.especial = D.tar.especial; }
-  const desc = (aj.aportes + aj.sindical) / 100;
+  const desc = aj.descTotal / 100;
   D.neto = D.rem * (1 - desc) + D.comida + D.especial;
   return D;
 }
@@ -535,9 +558,9 @@ function resumen(d1, d2, opt) {
     if (D.estimado) R.estimado = true;
   }
   R.rem = R.remN + R.remF + R.rem50 + R.rem100 + R.remPagos;
-  R.aportes = R.rem * aj.aportes / 100;
-  R.sindical = R.rem * aj.sindical / 100;
-  R.neto = R.rem - R.aportes - R.sindical + R.comida + R.especial;
+  R.descuentos = aj.descuentos.map(d => ({ nombre: d.nombre, pct: d.pct, monto: R.rem * d.pct / 100 }));
+  R.descTotal = R.descuentos.reduce((t, d) => t + d.monto, 0);
+  R.neto = R.rem - R.descTotal + R.comida + R.especial;
   return R;
 }
 
@@ -811,8 +834,9 @@ function renderCobro() {
   if (R.remPagos) rec += ln('Días pagos sin trabajar', R.diasPagos + (R.diasPagos === 1 ? ' día' : ' días') + ' (feriado o enfermedad)', m2(R.remPagos));
   rec += ln('Total remunerativo', '', m2(R.rem), 'tot');
   rec += '<div class="rs">Descuentos</div>';
-  rec += ln('Jubilación, PAMI y obra social', nf1.format(aj.aportes) + '%', '− ' + m2(R.aportes), 'neg');
-  if (aj.sindical) rec += ln('Aporte sindical', nf1.format(aj.sindical) + '%', '− ' + m2(R.sindical), 'neg');
+  const dsUsados = R.descuentos.filter(d => d.pct > 0);
+  for (const d of dsUsados) rec += ln(esc(d.nombre), fmtPct(d.pct) + '%', '− ' + m2(d.monto), 'neg');
+  if (dsUsados.length > 1) rec += ln('Total descuentos', fmtPct(aj.descTotal) + '%', '− ' + m2(R.descTotal), 'neg tot');
   rec += '<div class="rs">No remunerativo (sin descuentos)</div>';
   const cu = unico(R.comidas), eu = unico(R.especiales);
   rec += ln('Comida', R.dias + (R.dias === 1 ? ' día' : ' días') + (cu ? ' × ' + m2(cu) : ''), m2(R.comida));
@@ -885,10 +909,11 @@ function renderAjustes() {
     '<div class="field"><span class="lbl">Las extras se cuentan</span>' + segHTML('redondeo', [[1, 'Por minuto'], [15, 'De a 15 min'], [30, 'De a 30 min'], [60, 'Por hora completa']], aj.redondeo) + '</div>' +
     '</article>' +
 
-    '<article class="card"><h2 class="sec-title">Recargos y descuentos</h2>' +
+    '<article class="card"><h2 class="sec-title">Recargos de las extras</h2>' +
     '<div class="grid2">' + numHTML('recargoComun', 'Extras días comunes', aj.recargoComun, '%') + numHTML('recargoEspecial', 'Sábado desde 13 h, domingo y feriado', aj.recargoEspecial, '%') + '</div>' +
-    '<div class="grid2">' + numHTML('aportes', 'Jubilación, PAMI y obra social', aj.aportes, '%') + numHTML('sindical', 'Aporte sindical', aj.sindical, '%') + '</div>' +
     '</article>' +
+
+    descuentosCard(aj) +
 
     '<article class="card"><h2 class="sec-title">Cobro</h2>' +
     '<div class="field"><span class="lbl">Te pagan</span>' + segHTML('periodo', [['mensual', 'Por mes'], ['quincenal', 'Por quincena']], aj.periodo) + '</div>' +
@@ -902,8 +927,43 @@ function renderAjustes() {
 
     (window.claude ? '' : '<article class="card"><h2 class="sec-title">Tenela como app</h2><p class="hint"><b>Android (Chrome):</b> menú ⋮ → «Agregar a la pantalla principal» o «Instalar app».</p><p class="hint"><b>iPhone (Safari):</b> botón Compartir → «Agregar a inicio».</p><p class="hint">Una vez que la abriste, funciona aunque no tengas internet.</p></article>') +
 
-    '<article class="card"><h2 class="sec-title">Cómo calcula</h2><p class="hint">Valor hora = jornal ÷ horas de la jornada. Extras: ' + aj.recargoComun + '% de lunes a sábado hasta las 13 h y ' + aj.recargoEspecial + '% los sábados desde las 13, domingos y feriados. Un feriado trabajado se paga doble. La comida y el viático especial se pagan una vez por día trabajado y no tienen descuentos. Todo es una estimación hasta que lo compares con tu recibo.</p></article>';
+    '<article class="card"><h2 class="sec-title">Cómo calcula</h2><p class="hint">Valor hora = jornal ÷ horas de la jornada. Extras: ' + aj.recargoComun + '% de lunes a sábado hasta las 13 h y ' + aj.recargoEspecial + '% los sábados desde las 13, domingos y feriados. Un feriado trabajado se paga doble. Los descuentos se restan de lo remunerativo; la comida y el viático especial se pagan una vez por día trabajado y no tienen descuentos. Todo es una estimación hasta que lo compares con tu recibo.</p></article>';
 }
+
+const fmtPct = n => nfd.format(n);
+function descuentosCard(aj) {
+  const filas = aj.descuentos.map((d, i) => '<div class="drow">' +
+    '<div class="dleft">' + (d.ley || d.conv ? '<span class="dname">' + esc(d.nombre) + '</span>'
+      : '<input class="input" data-desc-nombre="' + i + '" aria-label="Nombre del descuento" maxlength="40" value="' + esc(d.nombre) + '">') +
+    '<span class="dtag">' + (d.ley ? 'por ley' : d.conv ? 'del convenio, a confirmar' : 'agregado por vos') + '</span></div>' +
+    '<div class="suf"><input class="input mono" data-desc-pct="' + i + '" inputmode="decimal" autocomplete="off" aria-label="Porcentaje de ' + esc(d.nombre) + '" value="' + esc(fmtPct(d.pct)) + '"><span>%</span></div>' +
+    (d.ley ? '<span></span>' : '<button type="button" class="btn btn-ghost btn-danger" data-act="desc-del" data-i="' + i + '">Quitar</button>') +
+    '</div>').join('');
+  const opts = aj.descuentos.map((d, i) => '<option value="' + i + '">' + esc(d.nombre) + '</option>').join('');
+  return '<article class="card"><h2 class="sec-title">Descuentos</h2>' +
+    '<p class="hint">Se restan de lo remunerativo. La comida y el viático especial no tienen descuentos.</p>' +
+    '<div class="dlist">' + filas + '</div>' +
+    '<div class="split"><button type="button" class="btn" data-act="desc-add">+ Agregar otro descuento</button><span class="num">Total: <b id="desc-total">' + fmtPct(aj.descTotal) + '%</b></span></div>' +
+    '<div class="calc"><h3 class="lbl">¿Qué porcentaje es un descuento de tu recibo?</h3>' +
+    '<p class="hint">Copiá del recibo el total remunerativo y el monto del descuento. El porcentaje es el descuento dividido el total, por 100.</p>' +
+    '<div class="grid2"><div class="field"><label for="calc-rem">Total remunerativo</label><div class="suf"><span>$</span><input class="input mono" id="calc-rem" inputmode="decimal" autocomplete="off" placeholder="353.555,73"></div></div>' +
+    '<div class="field"><label for="calc-monto">Monto del descuento</label><div class="suf"><span>$</span><input class="input mono" id="calc-monto" inputmode="decimal" autocomplete="off" placeholder="10.606,67"></div></div></div>' +
+    '<p class="preview" id="calc-res" aria-live="polite">Completá los dos montos.</p>' +
+    '<div class="field"><label for="calc-para">Usarlo para</label><select class="input" id="calc-para">' + opts + '</select></div>' +
+    '<button type="button" class="btn btn-primary" data-act="calc-usar">Usar este porcentaje</button></div>' +
+    '<button type="button" class="btn btn-ghost" data-act="desc-reset" style="justify-self:start">Volver a los descuentos iniciales</button>' +
+    '</article>';
+}
+function calcPct() {
+  const rem = parseNum(($('calc-rem') || {}).value), monto = parseNum(($('calc-monto') || {}).value);
+  return rem > 0 && monto >= 0 ? monto / rem * 100 : NaN;
+}
+function renombrarOpcion(i, nombre) {
+  const n = String(nombre || '').trim() || 'Descuento';
+  const opt = document.querySelector('#calc-para option[value="' + i + '"]'); if (opt) opt.textContent = n;
+  const pct = document.querySelector('[data-desc-pct="' + i + '"]'); if (pct) pct.setAttribute('aria-label', 'Porcentaje de ' + n);
+}
+function setDescuentos(list, opt) { state.ajustes = { ...state.ajustes, descuentos: list }; state.ajustesMod = Date.now(); persist(opt); }
 
 /* ================= Editor de un día ================= */
 let ed = null;
@@ -1135,6 +1195,19 @@ document.addEventListener('click', async e => {
   const b = e.target.closest('[data-act]');
   if (!b) return;
   const act = b.dataset.act, aj = AJ();
+  if (act === 'desc-add') {
+    const l = aj.descuentos.map(d => ({ ...d })); l.push({ id: 'c' + Date.now().toString(36), nombre: 'Otro descuento', pct: 0 }); setDescuentos(l);
+    const inp = document.querySelector('[data-desc-nombre="' + (l.length - 1) + '"]'); if (inp) { inp.focus(); inp.select(); }
+    return;
+  }
+  if (act === 'desc-del') { const l = aj.descuentos.map(d => ({ ...d })); const q = l.splice(+b.dataset.i, 1)[0]; setDescuentos(l); if (q) toast('Quitaste ' + q.nombre, { label: 'Deshacer', fn: () => { const l2 = AJ().descuentos.map(d => ({ ...d })); l2.splice(+b.dataset.i, 0, q); setDescuentos(l2); } }); return; }
+  if (act === 'desc-reset') { const n = { ...state.ajustes }; delete n.descuentos; state.ajustes = n; state.ajustesMod = Date.now(); persist(); toast('Descuentos iniciales'); return; }
+  if (act === 'calc-usar') {
+    const pct = calcPct(), i = +(($('calc-para') || {}).value || 0);
+    if (!Number.isFinite(pct)) { toast('Completá el total remunerativo y el monto del descuento.'); return; }
+    const l = aj.descuentos.map(d => ({ ...d })); if (!l[i]) return;
+    l[i].pct = r2(pct); setDescuentos(l); toast(l[i].nombre + ': ' + fmtPct(l[i].pct) + '%'); return;
+  }
   if (act === 'entre') {
     state.activo = { fecha: hoy(), entrada: ahoraHM() }; state.activoMod = Date.now(); persist();
     toast('Entrada ' + state.activo.entrada, { label: 'Cambiar', fn: () => document.querySelector('[data-act="editar-entrada"]') && document.querySelector('[data-act="editar-entrada"]').click() });
@@ -1183,10 +1256,27 @@ document.addEventListener('click', async e => {
 
 document.addEventListener('input', e => {
   if (ed && e.target.closest && e.target.closest('#layer')) { leerEditor(); const p = $('ed-prev'); if (p) p.innerHTML = previewHTML(); }
+  if (e.target.dataset && e.target.dataset.descNombre !== undefined) renombrarOpcion(e.target.dataset.descNombre, e.target.value);
+  if (e.target.id === 'calc-rem' || e.target.id === 'calc-monto') {
+    const pct = calcPct(), res = $('calc-res');
+    if (res) res.innerHTML = Number.isFinite(pct) ? 'Es el <b>' + nf2.format(pct) + '%</b> del total remunerativo.' : 'Completá los dos montos.';
+  }
 });
 document.addEventListener('change', e => {
   const t = e.target;
   if (ed && t.id === 'ed-fecha') { leerEditor(); renderEditor(); return; }
+  if (t.dataset && (t.dataset.descPct !== undefined || t.dataset.descNombre !== undefined)) {
+    const l = AJ().descuentos.map(d => ({ ...d }));
+    if (t.dataset.descPct !== undefined) {
+      const i = +t.dataset.descPct, v = parseNum(t.value);
+      if (!Number.isFinite(v) || v < 0 || v > 60) { toast('Escribí un porcentaje entre 0 y 60.'); renderAjustes(); return; }
+      if (l[i]) l[i].pct = v;
+    } else { const i = +t.dataset.descNombre; if (l[i]) { l[i].nombre = (t.value.trim() || 'Descuento').slice(0, 40); renombrarOpcion(i, l[i].nombre); } }
+    setDescuentos(l, { noRender: true });
+    const tot = $('desc-total'); if (tot) tot.textContent = fmtPct(l.reduce((a, d) => a + (+d.pct || 0), 0)) + '%';
+    toast('Guardado');
+    return;
+  }
   if (t.dataset && t.dataset.aj) {
     const k = t.dataset.aj;
     let v = t.value;
