@@ -1,0 +1,1241 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Horas y Sueldo</title>
+<meta name="description" content="Fichá entrada y salida y calculá tu sueldo con el convenio de Camioneros.">
+<meta name="theme-color" content="#6bbd66">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Horas">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<style>
+/* Layout: una columna angosta como una tarjeta de fichaje. Arriba lo que llevás cobrado, abajo el detalle; pestañas fijas abajo.
+   Paleta: verde y naranja de la farmacia, sin su logo. Verde = acciones y horas normales; naranja = salida y horas extra. */
+:root{
+  --bg:#eef2ee; --surface:#ffffff; --surface-2:#f3f6f3; --ink:#17201a; --muted:#57645a; --line:#d4ddd5;
+  --green:#6bbd66; --green-strong:#347e30; --green-ink:#2f7a2c; --on-green:#ffffff;
+  --orange:#f8923a; --on-orange:#1d1208; --mark-fg:#ffffff;
+  --good:#2f7a2c; --warn:#a8540b; --bad:#c0362c;
+  --scrim:rgba(8,12,9,.5); --toast-bg:#17201a; --toast-fg:#ffffff; --toast-act:#f8923a;
+  --f-display:"Barlow Condensed","Arial Narrow","Roboto Condensed",sans-serif;
+  --f-body:"Barlow","Helvetica Neue",Arial,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0d120e; --surface:#151b16; --surface-2:#1c241d; --ink:#ecf2ec; --muted:#9caa9e; --line:#2a362c;
+    --green:#6bbd66; --green-strong:#6bbd66; --green-ink:#8fd48a; --on-green:#0d120e;
+    --orange:#f8923a; --on-orange:#1d1208; --mark-fg:#ffffff;
+    --good:#8fd48a; --warn:#f4a259; --bad:#ff8a80;
+    --scrim:rgba(0,0,0,.6); --toast-bg:#ecf2ec; --toast-fg:#0d120e; --toast-act:#2f7a2c;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0d120e; --surface:#151b16; --surface-2:#1c241d; --ink:#ecf2ec; --muted:#9caa9e; --line:#2a362c;
+  --green:#6bbd66; --green-strong:#6bbd66; --green-ink:#8fd48a; --on-green:#0d120e;
+  --orange:#f8923a; --on-orange:#1d1208; --mark-fg:#ffffff;
+  --good:#8fd48a; --warn:#f4a259; --bad:#ff8a80;
+  --scrim:rgba(0,0,0,.6); --toast-bg:#ecf2ec; --toast-fg:#0d120e; --toast-act:#2f7a2c;
+  color-scheme:dark;
+}
+
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.45;margin:0}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:30;background:var(--surface)}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--green-strong);outline-offset:2px}
+p{margin:0}
+h2,h3{margin:0}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.num{font-variant-numeric:tabular-nums}
+
+/* Cabecera */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--surface);border-bottom:3px solid var(--green)}
+.top-in{max-width:600px;margin:0 auto;padding-block:10px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;align-items:center;justify-content:space-between;gap:12px}
+.brand{font-family:var(--f-display);font-weight:700;font-size:25px;letter-spacing:.01em;display:flex;align-items:center;gap:9px;white-space:nowrap}
+.brand-mark{width:26px;height:26px;flex:none}
+.chip-store{display:flex;align-items:center;gap:7px;border:1px solid var(--line);background:var(--surface-2);border-radius:999px;padding:5px 11px;font-size:13px;font-weight:600;color:var(--muted);white-space:nowrap;min-width:0}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--muted);flex:none}
+.dot.ok{background:var(--good)} .dot.busy{background:var(--orange)} .dot.local{background:var(--warn)} .dot.err{background:var(--bad)}
+
+/* Contenido */
+main{max-width:600px;margin:0 auto;padding-block:16px calc(96px + env(safe-area-inset-bottom,0px));padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.panel{display:grid;gap:14px;min-width:0}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;min-width:0;display:grid;gap:12px}
+.stripe{height:6px;margin:-16px -16px 2px;border-radius:11px 11px 0 0;background:linear-gradient(90deg,var(--green) 0 70%,var(--orange) 70% 100%)}
+.eyebrow{font-size:12.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.big{font-family:var(--f-display);font-weight:700;font-size:clamp(46px,14vw,64px);line-height:.95;letter-spacing:-.005em;font-variant-numeric:tabular-nums}
+.sub{color:var(--muted);font-size:14.5px}
+.sub b{color:var(--ink);font-weight:600}
+.stats{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:15px}
+.stats b{font-weight:700}
+.lead{font-size:16px}
+.hint{font-size:13.5px;color:var(--muted)}
+.sec-title{font-family:var(--f-display);font-size:22px;font-weight:700;letter-spacing:.01em;line-height:1.1}
+.row-btns{display:flex;flex-wrap:wrap;gap:8px}
+.row-btns.center{justify-content:center}
+.row-btns.end{justify-content:flex-end}
+.split{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+
+/* Botones */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:46px;padding:0 16px;border-radius:10px;border:1px solid var(--line);background:var(--surface-2);font-weight:600;font-size:15.5px;text-decoration:none}
+.btn:active{transform:translateY(1px)}
+.btn-primary{background:var(--green-strong);color:var(--on-green);border-color:transparent}
+.btn-orange{background:var(--orange);color:var(--on-orange);border-color:transparent}
+.btn-ghost{background:none;border-color:transparent;color:var(--green-ink);padding:0 10px;min-height:42px}
+.btn-danger{color:var(--bad)}
+.btn-danger-fill{background:var(--bad);color:var(--surface);border-color:transparent}
+.btn-xl{width:100%;min-height:72px;font-family:var(--f-display);font-size:32px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;border-radius:12px;gap:14px}
+.btn-xl .t{font-family:var(--f-mono);font-size:18px;font-weight:500;letter-spacing:0;opacity:.75}
+.btn-block{width:100%}
+
+/* Fichaje */
+.clock{font-family:var(--f-mono);font-size:44px;font-weight:500;line-height:1;letter-spacing:-.02em}
+.today-sum{display:grid;gap:4px;padding:12px;border-radius:10px;background:var(--surface-2);border:1px solid var(--line)}
+.today-sum .mono{font-size:17px}
+
+/* Semana */
+.week{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px;align-items:end}
+.wd{display:grid;gap:5px;justify-items:center;font-size:12.5px;color:var(--muted);min-width:0}
+.wd b{font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums;font-size:13px}
+.bar{width:100%;max-width:36px;height:88px;background:var(--surface-2);border:1px solid var(--line);border-radius:6px;overflow:hidden;display:flex;flex-direction:column-reverse}
+.bar i{display:block;width:100%}
+.bar .n{background:var(--green)}
+.bar .x{background:var(--orange)}
+.wd.hoy .lbl-d{color:var(--ink);font-weight:700;text-decoration:underline;text-decoration-color:var(--orange);text-decoration-thickness:3px;text-underline-offset:3px}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
+.legend span{display:inline-flex;gap:6px;align-items:center}
+.sw{width:11px;height:11px;border-radius:3px;display:inline-block}
+.sw.n{background:var(--green)} .sw.x{background:var(--orange)}
+
+/* Días */
+.weekhead{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap;padding:4px 2px 0}
+.weekhead h3{font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.weekhead span{font-size:14px;font-weight:600;font-variant-numeric:tabular-nums}
+.daylist{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.dayrow{display:grid;grid-template-columns:46px minmax(0,1fr) auto;gap:12px;align-items:center;padding:12px 14px;border-bottom:1px solid var(--line)}
+.dayrow:last-child{border-bottom:0}
+.dnum{font-family:var(--f-display);text-align:center;line-height:1}
+.dnum small{display:block;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.dnum b{font-size:28px;font-weight:700}
+.dmid{min-width:0;display:grid;gap:5px}
+.tline{background:none;border:0;padding:0;text-align:left;font-family:var(--f-mono);font-size:15.5px;color:var(--ink);text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:4px}
+.tline.lbl{font-family:var(--f-body);font-weight:600}
+.tags{display:flex;flex-wrap:wrap;gap:5px}
+.tag{font-size:12px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--surface-2);border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.tag.x{background:var(--orange);border-color:transparent;color:var(--on-orange)}
+.tag.warn{background:none;color:var(--warn);border-color:currentColor}
+.tag.fer{background:none;color:var(--ink);border-color:var(--ink)}
+.note{font-size:13px;color:var(--muted)}
+.amt{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.amt b{display:block;font-weight:700;font-size:16px}
+.amt small{color:var(--muted);font-size:13px}
+.dayrow.ghost{background:repeating-linear-gradient(-45deg,transparent 0 10px,var(--surface-2) 10px 20px)}
+.ghostbtn{background:none;border:0;padding:0;text-align:left;font-size:14.5px;color:var(--ink)}
+.ghostbtn u{text-decoration-color:var(--orange);text-decoration-thickness:2px;text-underline-offset:3px}
+.empty{text-align:center;padding:28px 16px;display:grid;gap:12px;justify-items:center}
+
+/* Cobro / recibo */
+.pnav{display:grid;grid-template-columns:44px minmax(0,1fr) 44px;align-items:center;gap:8px}
+.pnav button{min-height:44px;border-radius:10px;border:1px solid var(--line);background:var(--surface);font-size:20px;font-weight:700}
+.pnav button:disabled{opacity:.35;cursor:default}
+.pnav div{text-align:center;min-width:0}
+.pnav h2{font-family:var(--f-display);font-size:26px;font-weight:700;line-height:1.05}
+.rec{display:grid;gap:0}
+.rec .rs{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding:14px 0 4px}
+.rec .rs:first-child{padding-top:0}
+.rec .ln{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;padding:8px 0;border-bottom:1px dashed var(--line);align-items:baseline}
+.rec .ln .k{font-size:15px}
+.rec .ln .k small{display:block;font-family:var(--f-mono);font-size:12.5px;color:var(--muted);margin-top:2px}
+.rec .ln .v{font-family:var(--f-mono);font-size:15px;text-align:right;white-space:nowrap}
+.rec .ln.tot{border-bottom:1.5px solid var(--ink)}
+.rec .ln.tot .k,.rec .ln.tot .v{font-weight:600}
+.rec .ln.neg .v{color:var(--bad)}
+.rec .neto{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;padding-top:14px}
+.rec .neto span{font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+.rec .neto b{font-family:var(--f-display);font-size:40px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1}
+.diff{padding:10px 12px;border-radius:10px;border:1px solid var(--line);font-size:15px}
+.diff.ok{border-color:var(--good);color:var(--good)}
+.diff.bad{border-color:var(--warn)}
+.kv{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 14px;font-size:15px}
+.kv dt{color:var(--muted)}
+.kv dd{margin:0;text-align:right;font-weight:600;font-variant-numeric:tabular-nums}
+
+/* Formularios */
+.field{display:grid;gap:6px;min-width:0}
+.field>label,.lbl{font-size:13.5px;font-weight:600;color:var(--muted)}
+.input{width:100%;min-height:48px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface-2);font-size:16px;min-width:0}
+.input.mono{font-family:var(--f-mono)}
+textarea.input{min-height:64px;resize:vertical}
+.suf{display:flex;align-items:center;gap:8px}
+.suf span{color:var(--muted);font-size:14.5px;white-space:nowrap}
+.seg{display:flex;flex-wrap:wrap;gap:6px}
+.seg button{border:1px solid var(--line);background:var(--surface-2);border-radius:999px;padding:9px 13px;font-size:14.5px;font-weight:600;min-height:42px}
+.seg button[aria-pressed="true"]{background:var(--green-strong);color:var(--on-green);border-color:transparent}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.check{display:flex;gap:10px;align-items:center;font-size:15.5px}
+.check input{width:22px;height:22px;accent-color:var(--green-strong)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chips button{border:1px dashed var(--line);background:none;border-radius:8px;padding:6px 10px;font-family:var(--f-mono);font-size:14px}
+.preview{padding:12px;border-radius:10px;background:var(--surface-2);border:1px solid var(--line);font-size:15px;display:grid;gap:3px}
+.preview b{font-size:17px}
+.err{color:var(--bad);font-size:14px;font-weight:600}
+details.more{border-top:1px solid var(--line);padding-top:10px}
+details.more summary{cursor:pointer;font-weight:600;color:var(--green-ink);font-size:15px;min-height:36px;display:flex;align-items:center}
+details.more[open]{display:grid;gap:12px}
+.tarifa{display:grid;gap:8px;padding:12px 0;border-bottom:1px solid var(--line)}
+.tarifa:last-of-type{border-bottom:0}
+.tarifa-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.tarifa .vals{display:grid;grid-template-columns:auto minmax(0,1fr) auto minmax(0,1fr);gap:4px 10px;margin:0;font-size:14px;align-items:baseline}
+.tarifa .vals dt{color:var(--muted)}
+.tarifa .vals dd{margin:0;font-family:var(--f-mono);font-size:13.5px;white-space:nowrap}
+@media (max-width:360px){.tarifa .vals{grid-template-columns:auto minmax(0,1fr)}}
+.tarifa.vig{box-shadow:inset 4px 0 0 var(--green);padding-left:12px}
+.banner{display:grid;gap:10px;padding:14px 16px;border-radius:12px;border:1.5px solid var(--warn);background:var(--surface)}
+.copybox{width:100%;min-height:160px;font-family:var(--f-mono);font-size:12px}
+
+/* Pestañas */
+.tabs{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--surface);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px);padding-left:env(safe-area-inset-left,0px);padding-right:env(safe-area-inset-right,0px)}
+.tabs-in{max-width:600px;margin:0 auto;display:grid;grid-template-columns:repeat(4,minmax(0,1fr))}
+.tab{background:none;border:0;border-top:3px solid transparent;padding:7px 4px 9px;display:grid;justify-items:center;gap:2px;font-size:13px;font-weight:600;color:var(--muted)}
+.tab svg{width:24px;height:24px}
+.tab[aria-selected="true"]{color:var(--green-ink);border-top-color:var(--green-strong)}
+
+/* Capas */
+.scrim{position:fixed;inset:0;background:var(--scrim);z-index:40;display:flex;align-items:flex-end;justify-content:center}
+.scrim.center{align-items:center;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.sheet{background:var(--surface);width:100%;max-width:600px;max-height:92vh;max-height:92dvh;overflow:auto;border-radius:16px 16px 0 0;padding-block:18px calc(18px + env(safe-area-inset-bottom,0px));padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:14px}
+.sheet-head{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.dialog{background:var(--surface);border-radius:14px;padding:18px;width:100%;max-width:420px;display:grid;gap:12px;max-height:90vh;overflow:auto}
+.dialog h2{font-family:var(--f-display);font-size:24px;font-weight:700;line-height:1.1}
+@media (min-width:640px){.scrim{align-items:center}.sheet{border-radius:16px;padding-bottom:18px}}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(86px + env(safe-area-inset-bottom,0px));background:var(--toast-bg);color:var(--toast-fg);padding:11px 14px;border-radius:10px;z-index:60;display:flex;gap:14px;align-items:center;width:max-content;max-width:calc(100% - 32px);font-size:15px;box-shadow:0 6px 24px rgba(0,0,0,.18)}
+.toast button{background:none;border:0;color:var(--toast-act);font-weight:700;font-size:15px;padding:4px}
+.sheet-open .toast{bottom:auto;top:calc(12px + env(safe-area-inset-top,0px))}
+@media (prefers-reduced-motion:no-preference){
+  .sheet{animation:up .18s ease-out}
+  @keyframes up{from{transform:translateY(24px);opacity:.6}to{transform:none;opacity:1}}
+}
+</style>
+</head>
+<body>
+<header class="top"><div class="top-in">
+  <div class="brand"><svg class="brand-mark" viewBox="0 0 26 26" aria-hidden="true"><circle cx="13" cy="13" r="12" fill="var(--green)"/><path d="M13 6.8V13l4 2.5" fill="none" stroke="var(--mark-fg)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="13" cy="13" r="2.2" fill="var(--orange)"/></svg>Horas y Sueldo</div>
+  <button class="chip-store" id="chip-store" type="button" data-go="ajustes" aria-label="Dónde se guardan tus datos"><span class="dot ok" id="chip-dot"></span><span id="chip-txt">En este navegador</span></button>
+</div></header>
+
+<main>
+  <section class="panel" id="tab-hoy"></section>
+  <section class="panel" id="tab-dias" hidden></section>
+  <section class="panel" id="tab-cobro" hidden></section>
+  <section class="panel" id="tab-ajustes" hidden></section>
+</main>
+
+<nav class="tabs" aria-label="Secciones"><div class="tabs-in" role="tablist">
+  <button class="tab" role="tab" type="button" data-go="hoy" aria-selected="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Hoy</button>
+  <button class="tab" role="tab" type="button" data-go="dias" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>Días</button>
+  <button class="tab" role="tab" type="button" data-go="cobro" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/></svg>Cobro</button>
+  <button class="tab" role="tab" type="button" data-go="ajustes" aria-selected="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>Ajustes</button>
+</div></nav>
+
+<div id="layer"></div>
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+<input type="file" id="imp-file" accept=".json,application/json" hidden>
+
+<script>
+(() => {
+'use strict';
+document.documentElement.lang = 'es-AR';
+
+/* ================= Datos de referencia ================= */
+const CACHE_KEY = 'horas-sueldo:v1';
+const UI_KEY = 'horas-sueldo:ui';
+
+const DEFAULTS = {
+  horaEntrada: '06:00', horaSalida: '14:00', horasJornada: 8,
+  modo: 'salida',          // 'salida': las extras empiezan a la hora de salida del turno | 'total': después de 8 h trabajadas
+  tolerancia: 0, bloqueTarde: 1, redondeo: 1, pausa: 0,
+  recargoComun: 50, recargoEspecial: 100,
+  aportes: 17, sindical: 0,
+  periodo: 'mensual', diaCobro: 4,
+  ingreso: ''
+};
+
+// Peón, CCT 40/89 (Camioneros). Octubre 2026 según el acuerdo; los meses siguientes, estimados con los aumentos pactados.
+const BASE_OCT = { desde: '2026-10-01', jornal: 42855.24, comida: 17231.89, especial: 8646.93, nota: 'Según el acuerdo de Camioneros' };
+const AUMENTOS = [['2026-11-01', 1.7], ['2026-12-01', 1.6], ['2027-01-01', 1.6], ['2027-02-01', 1.5]];
+const r2 = n => Math.round(n * 100) / 100;
+const TARIFAS_BASE = (() => {
+  const out = [{ ...BASE_OCT, base: true }];
+  let prev = BASE_OCT;
+  for (const [desde, pct] of AUMENTOS) {
+    const k = 1 + pct / 100;
+    const t = { desde, jornal: r2(prev.jornal * k), comida: r2(prev.comida * k), especial: r2(prev.especial * k),
+      base: true, estimado: true, nota: 'Estimado: +' + String(pct).replace('.', ',') + '% del acuerdo' };
+    out.push(t); prev = t;
+  }
+  return out;
+})();
+
+const FERIADOS = {
+  '2026-11-23': 'Día de la Soberanía Nacional',
+  '2026-12-08': 'Inmaculada Concepción de María',
+  '2026-12-25': 'Navidad',
+  '2027-01-01': 'Año Nuevo',
+  '2027-02-08': 'Carnaval',
+  '2027-02-09': 'Carnaval',
+  '2027-03-24': 'Día de la Memoria',
+  '2027-03-26': 'Viernes Santo',
+  '2027-04-02': 'Día de Malvinas'
+};
+const NO_LABORABLES = { '2026-12-07': 'Día no laborable (decide la empresa)', '2027-03-25': 'Jueves Santo (no laborable)' };
+
+/* ================= Utilidades ================= */
+const $ = id => document.getElementById(id);
+const pad = n => String(n).padStart(2, '0');
+const toISO = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const fromISO = s => new Date(s + 'T12:00:00');
+const hoy = () => toISO(new Date());
+const addDays = (s, n) => { const d = fromISO(s); d.setDate(d.getDate() + n); return toISO(d); };
+const dow = s => fromISO(s).getDay();
+const isISO = s => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
+const isHM = s => typeof s === 'string' && /^\d{2}:\d{2}$/.test(s);
+const toMin = s => { if (!isHM(s)) return null; const [h, m] = s.split(':').map(Number); return h * 60 + m; };
+const nowMin = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
+const ahoraHM = () => { const d = new Date(); return pad(d.getHours()) + ':' + pad(d.getMinutes()); };
+const lunesDe = s => { const w = dow(s); return addDays(s, w === 0 ? -6 : 1 - w); };
+const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+const DIAS3 = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+const INI = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
+const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+const dm = s => (+s.slice(8)) + '/' + (+s.slice(5, 7));
+const fCorta = s => DIAS3[dow(s)] + ' ' + dm(s);
+const fLarga = s => DIAS[dow(s)] + ' ' + dm(s);
+const fFull = s => (+s.slice(8)) + '/' + (+s.slice(5, 7)) + '/' + s.slice(0, 4);
+const nf0 = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 0 });
+const nf2 = new Intl.NumberFormat('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const nf1 = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 });
+const nfd = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 2 });
+const m0 = n => '$ ' + nf0.format(Math.round(n || 0));
+const m2 = n => '$ ' + nf2.format(n || 0);
+const hDec = m => nf2.format((m || 0) / 60) + ' h';
+const hTxt = m => { m = Math.round(m || 0); const h = Math.floor(m / 60), r = m % 60; if (!r) return h + ' h'; return h ? h + ' h ' + r + ' min' : r + ' min'; };
+const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const newId = () => 't' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+function parseNum(v) {
+  if (typeof v === 'number') return v;
+  let s = String(v || '').replace(/[\s$ ]/g, '');
+  if (!s) return NaN;
+  if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');
+  else if ((s.match(/\./g) || []).length > 1) s = s.replace(/\./g, '');
+  else if (/^\d{1,3}\.\d{3}$/.test(s)) s = s.replace('.', '');
+  return Number(s);
+}
+const stableStr = v => JSON.stringify(v, (k, val) => (val && typeof val === 'object' && !Array.isArray(val))
+  ? Object.keys(val).sort().reduce((o, kk) => { o[kk] = val[kk]; return o; }, {}) : val);
+
+/* ================= Estado ================= */
+function emptyState() {
+  return { v: 1, mod: 0, turnos: {}, borrados: {}, activo: null, activoMod: 0, ajustes: {}, ajustesMod: 0, tarifas: {}, recibos: {}, ultimaCopia: 0 };
+}
+const TIPOS = ['trabajo', 'enfermedad', 'feriado', 'falta'];
+function normalize(raw) {
+  const s = emptyState();
+  if (!raw || typeof raw !== 'object') return s;
+  s.mod = +raw.mod || 0;
+  const T = raw.turnos && typeof raw.turnos === 'object' ? raw.turnos : {};
+  for (const [id, t] of Object.entries(T)) {
+    if (!t || typeof t !== 'object' || !isISO(t.fecha)) continue;
+    s.turnos[id] = {
+      id, fecha: t.fecha, tipo: TIPOS.includes(t.tipo) ? t.tipo : 'trabajo',
+      entrada: isHM(t.entrada) ? t.entrada : '', salida: isHM(t.salida) ? t.salida : '',
+      pausa: Math.max(0, Math.min(600, +t.pausa || 0)),
+      feriado: t.feriado === true || t.feriado === false ? t.feriado : null,
+      te: isHM(t.te) ? t.te : '', ts: isHM(t.ts) ? t.ts : '',
+      nota: String(t.nota || '').slice(0, 300), mod: +t.mod || 0
+    };
+  }
+  for (const [k, v] of Object.entries(raw.borrados || {})) s.borrados[k] = +v || 0;
+  s.activo = raw.activo && isISO(raw.activo.fecha) && isHM(raw.activo.entrada) ? { fecha: raw.activo.fecha, entrada: raw.activo.entrada } : null;
+  s.activoMod = +raw.activoMod || 0;
+  s.ajustes = raw.ajustes && typeof raw.ajustes === 'object' ? { ...raw.ajustes } : {};
+  s.ajustesMod = +raw.ajustesMod || 0;
+  for (const [k, v] of Object.entries(raw.tarifas || {})) if (v && typeof v === 'object' && isISO(k)) s.tarifas[k] = { ...v };
+  for (const [k, v] of Object.entries(raw.recibos || {})) if (v && typeof v === 'object') s.recibos[k] = { ...v };
+  s.ultimaCopia = +raw.ultimaCopia || 0;
+  return s;
+}
+function mergeStates(a, b) {
+  const out = emptyState();
+  out.mod = Math.max(a.mod || 0, b.mod || 0);
+  for (const src of [a.borrados, b.borrados]) for (const [k, v] of Object.entries(src || {})) out.borrados[k] = Math.max(out.borrados[k] || 0, v || 0);
+  for (const src of [a.turnos, b.turnos]) for (const [id, t] of Object.entries(src || {})) {
+    const cur = out.turnos[id];
+    if (!cur || (t.mod || 0) > (cur.mod || 0)) out.turnos[id] = t;
+  }
+  for (const id of Object.keys(out.turnos)) if ((out.borrados[id] || 0) >= (out.turnos[id].mod || 0)) delete out.turnos[id];
+  const A = (a.activoMod || 0) >= (b.activoMod || 0) ? a : b;
+  out.activo = A.activo; out.activoMod = A.activoMod || 0;
+  const J = (a.ajustesMod || 0) >= (b.ajustesMod || 0) ? a : b;
+  out.ajustes = { ...(J.ajustes || {}) }; out.ajustesMod = J.ajustesMod || 0;
+  for (const key of ['tarifas', 'recibos']) for (const src of [a[key], b[key]]) for (const [k, v] of Object.entries(src || {})) {
+    const cur = out[key][k];
+    if (!cur || (v.mod || 0) > (cur.mod || 0)) out[key][k] = v;
+  }
+  out.ultimaCopia = Math.max(a.ultimaCopia || 0, b.ultimaCopia || 0);
+  return out;
+}
+
+let state = emptyState();
+let ui = { tab: 'hoy', periodo: null };
+try { const u = JSON.parse(localStorage.getItem(UI_KEY) || 'null'); if (u && ['hoy', 'dias', 'cobro', 'ajustes'].includes(u.tab)) ui.tab = u.tab; } catch (e) {}
+
+function AJ() {
+  const s = state.ajustes || {}, a = { ...DEFAULTS };
+  for (const k of Object.keys(DEFAULTS)) if (s[k] !== undefined && s[k] !== null && s[k] !== '') a[k] = s[k];
+  for (const k of ['horasJornada', 'tolerancia', 'bloqueTarde', 'redondeo', 'pausa', 'recargoComun', 'recargoEspecial', 'aportes', 'sindical', 'diaCobro']) {
+    const n = +a[k]; a[k] = Number.isFinite(n) ? n : DEFAULTS[k];
+  }
+  if (a.horasJornada <= 0) a.horasJornada = 8;
+  if (a.diaCobro < 1) a.diaCobro = 1;
+  if (!isHM(a.horaEntrada)) a.horaEntrada = DEFAULTS.horaEntrada;
+  if (!isHM(a.horaSalida)) a.horaSalida = DEFAULTS.horaSalida;
+  if (!['salida', 'total'].includes(a.modo)) a.modo = 'salida';
+  if (!['mensual', 'quincenal'].includes(a.periodo)) a.periodo = 'mensual';
+  if (!isISO(a.ingreso)) a.ingreso = primeraFecha() || '';
+  return a;
+}
+function primeraFecha() { let m = null; for (const t of Object.values(state.turnos)) if (!m || t.fecha < m) m = t.fecha; return m; }
+
+function tarifas() {
+  const map = new Map(TARIFAS_BASE.map(t => [t.desde, t]));
+  for (const [k, t] of Object.entries(state.tarifas || {})) {
+    if (t.borrada) { const b = TARIFAS_BASE.find(x => x.desde === k); if (b) map.set(k, b); else map.delete(k); }
+    else if (t.oculta) map.delete(k);
+    else if (+t.jornal > 0) map.set(k, { desde: k, jornal: +t.jornal, comida: +t.comida || 0, especial: +t.especial || 0, nota: t.nota || 'Cargado por vos', propia: true });
+  }
+  const list = [...map.values()].sort((x, y) => x.desde < y.desde ? -1 : 1);
+  return list.length ? list : [BASE_OCT];
+}
+function tarifaPara(fecha, list) {
+  list = list || tarifas();
+  let t = list[0];
+  for (const x of list) if (x.desde <= fecha) t = x;
+  return t;
+}
+
+/* ================= Cálculo ================= */
+const overlap = (a1, a2, b1, b2) => Math.max(0, Math.min(a2, b2) - Math.max(a1, b1));
+const esFeriadoT = t => (t.feriado === true || t.feriado === false) ? t.feriado : !!FERIADOS[t.fecha];
+
+// Calcula un registro. nowM: minutos del día para un turno en curso (sin salida).
+function calcTurno(t, aj, tl, nowM) {
+  const tar = tarifaPara(t.fecha, tl);
+  const hj = aj.horasJornada, vh = tar.jornal / hj;
+  const w = dow(t.fecha), fer = esFeriadoT(t);
+  const r = { tar, vh, fer, w, normal: 0, normalFer: 0, e50: 0, e100: 0, tarde: 0, pagoSin: 0, rem: 0, min: 0, trabajado: false, ini: null, fin: null };
+  if (t.tipo === 'enfermedad' || t.tipo === 'feriado') { r.pagoSin = tar.jornal; r.rem = tar.jornal; return r; }
+  if (t.tipo === 'falta') return r;
+  const ini = toMin(t.entrada);
+  let fin = t.salida ? toMin(t.salida) : (nowM == null ? null : nowM);
+  if (ini == null || fin == null) return r;
+  if (fin <= ini) fin += 1440;
+  r.ini = ini; r.fin = fin;
+  const E = toMin(t.te || aj.horaEntrada);
+  let S = toMin(t.ts || aj.horaSalida);
+  if (S <= E) S += 1440;
+  // Llegada tarde: tolerancia y descuento por bloques
+  let late = Math.max(0, ini - E);
+  if (late > 0 && late <= aj.tolerancia) late = 0;
+  else if (late > 0 && aj.bloqueTarde > 1) late = Math.ceil(late / aj.bloqueTarde) * aj.bloqueTarde;
+  const iniEff = ini > E ? E + late : ini;
+  r.tarde = ini > E ? late : 0;
+  let normal, extra, xStart;
+  if (aj.modo === 'total') {
+    const total = Math.max(0, fin - iniEff);
+    normal = Math.min(total, hj * 60);
+    extra = total - normal;
+    xStart = fin - extra;
+  } else {
+    normal = overlap(iniEff, fin, E, S);
+    xStart = Math.max(S, iniEff);
+    extra = Math.max(0, fin - xStart);
+  }
+  // Pausa sin goce: primero de las normales
+  let p = Math.max(0, +t.pausa || 0);
+  const dn = Math.min(p, normal); normal -= dn; p -= dn;
+  if (p > 0) { const de = Math.min(p, extra); extra -= de; xStart += de; }
+  if (normal > hj * 60) { const over = normal - hj * 60; normal = hj * 60; extra += over; xStart -= over; }
+  const rd = Math.max(1, aj.redondeo || 1);
+  const xr = Math.floor(extra / rd) * rd;
+  let e50 = 0, e100 = 0;
+  if (fer || w === 0) e100 = xr;
+  else if (w === 6) { e100 = overlap(xStart, xStart + xr, 13 * 60, 1e9); e50 = xr - e100; }
+  else e50 = xr;
+  r.normal = fer ? 0 : normal; r.normalFer = fer ? normal : 0;
+  r.e50 = e50; r.e100 = e100;
+  r.min = normal + xr;
+  const k50 = 1 + aj.recargoComun / 100, k100 = 1 + aj.recargoEspecial / 100;
+  r.rem = r.normal / 60 * vh + r.normalFer / 60 * vh * 2 + e50 / 60 * vh * k50 + e100 / 60 * vh * k100;
+  r.trabajado = r.min > 0;
+  return r;
+}
+function turnosDe(f) { return Object.values(state.turnos).filter(t => t.fecha === f).sort((a, b) => (a.entrada || '') < (b.entrada || '') ? -1 : 1); }
+function turnoActivoComo() { const a = state.activo; return a ? { id: '_activo', fecha: a.fecha, tipo: 'trabajo', entrada: a.entrada, salida: '', enCurso: true } : null; }
+
+// Junta los registros de un día: la comida y el viático especial se pagan una vez por día trabajado.
+function calcDia(ts, aj, tl) {
+  const D = { normal: 0, normalFer: 0, e50: 0, e100: 0, tarde: 0, min: 0, rem: 0, remN: 0, remF: 0, rem50: 0, rem100: 0, pagoSin: 0, comida: 0, especial: 0, trabajado: false, pago: false, estimado: false, fer: false, tar: null, vh: 0, items: [] };
+  for (const t of ts) {
+    const r = calcTurno(t, aj, tl, t.enCurso ? nowMin() : null);
+    D.items.push([t, r]);
+    D.tar = r.tar; D.vh = r.vh;
+    const k50 = 1 + aj.recargoComun / 100, k100 = 1 + aj.recargoEspecial / 100;
+    D.normal += r.normal; D.normalFer += r.normalFer; D.e50 += r.e50; D.e100 += r.e100; D.tarde += r.tarde; D.min += r.min;
+    D.remN += r.normal / 60 * r.vh; D.remF += r.normalFer / 60 * r.vh * 2; D.rem50 += r.e50 / 60 * r.vh * k50; D.rem100 += r.e100 / 60 * r.vh * k100;
+    D.pagoSin += r.pagoSin; D.rem += r.rem;
+    if (r.trabajado) D.trabajado = true;
+    if (r.pagoSin) D.pago = true;
+    if (r.fer) D.fer = true;
+    if (r.tar.estimado) D.estimado = true;
+  }
+  if (D.trabajado && D.tar) { D.comida = D.tar.comida; D.especial = D.tar.especial; }
+  const desc = (aj.aportes + aj.sindical) / 100;
+  D.neto = D.rem * (1 - desc) + D.comida + D.especial;
+  return D;
+}
+function resumen(d1, d2, opt) {
+  opt = opt || {};
+  const aj = AJ(), tl = tarifas();
+  const byDay = new Map();
+  for (const t of Object.values(state.turnos)) if (t.fecha >= d1 && t.fecha <= d2) { if (!byDay.has(t.fecha)) byDay.set(t.fecha, []); byDay.get(t.fecha).push(t); }
+  const act = turnoActivoComo();
+  if (opt.conActivo && act && act.fecha === hoy() && act.fecha >= d1 && act.fecha <= d2) { if (!byDay.has(act.fecha)) byDay.set(act.fecha, []); byDay.get(act.fecha).push(act); }
+  const R = { dias: 0, diasPagos: 0, normal: 0, normalFer: 0, e50: 0, e100: 0, min: 0, remN: 0, remF: 0, rem50: 0, rem100: 0, remPagos: 0, rem: 0, comida: 0, especial: 0, estimado: false, vhs: new Set(), comidas: new Set(), especiales: new Set(), jornales: new Set(), tarifasUsadas: new Map(), porDia: new Map() };
+  for (const [f, ts] of byDay) {
+    const D = calcDia(ts, aj, tl);
+    R.porDia.set(f, D);
+    R.normal += D.normal; R.normalFer += D.normalFer; R.e50 += D.e50; R.e100 += D.e100; R.min += D.min;
+    R.remN += D.remN; R.remF += D.remF; R.rem50 += D.rem50; R.rem100 += D.rem100; R.remPagos += D.pagoSin;
+    if (D.trabajado) { R.dias++; R.comida += D.comida; R.especial += D.especial; R.comidas.add(D.comida); R.especiales.add(D.especial); }
+    else if (D.pago) R.diasPagos++;
+    if (D.tar) { R.vhs.add(r2(D.vh)); R.jornales.add(D.tar.jornal); R.tarifasUsadas.set(D.tar.desde, D.tar); }
+    if (D.estimado) R.estimado = true;
+  }
+  R.rem = R.remN + R.remF + R.rem50 + R.rem100 + R.remPagos;
+  R.aportes = R.rem * aj.aportes / 100;
+  R.sindical = R.rem * aj.sindical / 100;
+  R.neto = R.rem - R.aportes - R.sindical + R.comida + R.especial;
+  return R;
+}
+
+/* Períodos de cobro */
+const esHabil = d => { const w = dow(d); return w !== 0 && w !== 6 && !FERIADOS[d]; };
+function periodoDe(f, aj) { const ym = f.slice(0, 7); return aj.periodo === 'quincenal' ? ym + '-' + (+f.slice(8) <= 15 ? 1 : 2) : ym; }
+function rango(key) {
+  const p = key.split('-'), y = +p[0], m = +p[1], q = p[2] ? +p[2] : 0;
+  const last = new Date(y, m, 0).getDate(), ym = y + '-' + pad(m);
+  if (q === 1) return [ym + '-01', ym + '-15'];
+  if (q === 2) return [ym + '-16', ym + '-' + pad(last)];
+  return [ym + '-01', ym + '-' + pad(last)];
+}
+function cobroDe(key, aj) {
+  let d = addDays(rango(key)[1], 1), n = 0;
+  for (let i = 0; i < 60; i++) { if (esHabil(d)) { n++; if (n >= aj.diaCobro) return d; } d = addDays(d, 1); }
+  return d;
+}
+function nombrePeriodo(key) { const p = key.split('-'); const mes = MESES[+p[1] - 1]; return p[2] ? (p[2] === '1' ? '1.ª' : '2.ª') + ' quincena de ' + mes : mes + ' ' + p[0]; }
+function textoRango(key, aj) {
+  const [d1, d2] = rango(key);
+  const ini = aj.ingreso && aj.ingreso > d1 && aj.ingreso <= d2 ? aj.ingreso : d1;
+  return 'del ' + (+ini.slice(8)) + ' al ' + (+d2.slice(8));
+}
+function listaPeriodos(aj) {
+  const s = new Set([periodoDe(hoy(), aj)]);
+  for (const t of Object.values(state.turnos)) s.add(periodoDe(t.fecha, aj));
+  return [...s].sort();
+}
+
+/* ================= Guardado: solo en este navegador ================= */
+let guardadoOk = true;
+function loadCache() { try { const o = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null'); return o && o.estado ? o : null; } catch (e) { return null; } }
+function saveCache() {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ estado: state }));
+    if (!guardadoOk) { guardadoOk = true; setChip(); }
+  } catch (e) {
+    if (guardadoOk) { guardadoOk = false; setChip(); toast('Este navegador no deja guardar. Guardá una copia para no perder tus días.'); }
+  }
+}
+function saveUI() { try { localStorage.setItem(UI_KEY, JSON.stringify({ tab: ui.tab })); } catch (e) {} }
+function persist(opt) {
+  opt = opt || {};
+  state.mod = Date.now();
+  saveCache();
+  if (!opt.noRender) renderCurrent();
+}
+function setChip() {
+  $('chip-dot').className = 'dot ' + (guardadoOk ? 'ok' : 'err');
+  $('chip-txt').textContent = guardadoOk ? 'En este navegador' : 'No se está guardando';
+}
+// Si la app está abierta en otra pestaña del mismo navegador, junta los cambios
+window.addEventListener('storage', e => {
+  if (e.key !== CACHE_KEY || !e.newValue) return;
+  try { const o = JSON.parse(e.newValue); if (o && o.estado) { state = mergeStates(state, normalize(o.estado)); renderSoft(); } } catch (err) {}
+});
+
+/* ================= Interfaz: utilidades ================= */
+let toastTimer = null;
+function toast(msg, accion) {
+  const t = $('toast');
+  t.innerHTML = '<span>' + esc(msg) + '</span>' + (accion ? '<button type="button" id="toast-act">' + esc(accion.label) + '</button>' : '');
+  t.hidden = false;
+  if (accion) $('toast-act').onclick = () => { t.hidden = true; accion.fn(); };
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.hidden = true; }, accion ? 6500 : 3200);
+}
+function dialogo(o) {
+  return new Promise(res => {
+    const sc = document.createElement('div');
+    sc.className = 'scrim center';
+    sc.innerHTML = '<div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dlg-t"><h2 id="dlg-t">' + esc(o.titulo) + '</h2>' +
+      (o.texto ? '<p class="lead">' + esc(o.texto) + '</p>' : '') + (o.html || '') +
+      '<div class="row-btns end">' + (o.cancel === false ? '' : '<button type="button" class="btn" data-r="0">' + esc(o.cancel || 'Cancelar') + '</button>') +
+      '<button type="button" class="btn ' + (o.peligro ? 'btn-danger-fill' : 'btn-primary') + '" data-r="1">' + esc(o.ok || 'Aceptar') + '</button></div></div>';
+    document.body.appendChild(sc);
+    const done = v => { sc.remove(); document.removeEventListener('keydown', onKey); res(v); };
+    const onKey = e => { if (e.key === 'Escape') done(null); };
+    document.addEventListener('keydown', onKey);
+    sc.addEventListener('click', e => {
+      const b = e.target.closest('[data-r]');
+      if (b) { if (b.dataset.r === '1') { const inp = sc.querySelector('[data-val]'); done(inp ? inp.value : true); } else done(null); }
+      else if (e.target === sc) done(null);
+    });
+    if (o.onMount) o.onMount(sc);
+    setTimeout(() => { const f = sc.querySelector('[data-val]') || sc.querySelector('[data-r="1"]'); if (f) f.focus(); }, 40);
+  });
+}
+const pedirHora = (titulo, valor, texto) => dialogo({ titulo, texto, ok: 'Guardar', html: '<input class="input mono" type="time" id="dlg-hora" data-val value="' + esc(valor || '') + '">' });
+
+async function ofrecerArchivo(filename, data) {
+  const cl = window.claude;
+  if (!cl || typeof cl.use !== 'function') {
+    try {
+      const url = URL.createObjectURL(new Blob([data], { type: filename.endsWith('.csv') ? 'text/csv' : 'application/json' }));
+      const a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+      return true;
+    } catch (e) { mostrarParaCopiar(filename, data); return false; }
+  }
+  let dl = null;
+  try { dl = await cl.use('downloads'); } catch (e) {}
+  if (dl) {
+    try { await dl.save({ filename, data }); return true; }
+    catch (e) {
+      const c = e && e.code;
+      if (c === 'declined') return false;
+      if (c === 'rate_limited') { toast('Ya hay una descarga esperando. Probá de nuevo en un momento.'); return false; }
+    }
+  }
+  mostrarParaCopiar(filename, data);
+  return false;
+}
+function mostrarParaCopiar(filename, data) {
+  dialogo({
+    titulo: 'Copiá tu copia', ok: 'Listo', cancel: false,
+    html: '<p class="hint">Acá no se pudo descargar el archivo. Copiá el texto y guardalo en una nota o mandátelo por WhatsApp.</p><textarea class="input copybox" id="dlg-copy" readonly>' + esc(data) + '</textarea><button type="button" class="btn" id="dlg-copy-btn">Copiar</button>',
+    onMount: sc => {
+      sc.querySelector('#dlg-copy-btn').addEventListener('click', () => {
+        const ta = sc.querySelector('#dlg-copy');
+        const sel = () => { ta.focus(); ta.select(); };
+        try { navigator.clipboard.writeText(data).then(() => toast('Copiado'), () => { sel(); toast('Seleccioná y copiá el texto'); }); }
+        catch (e) { sel(); toast('Seleccioná y copiá el texto'); }
+      });
+    }
+  });
+}
+
+/* ================= Interfaz: Hoy ================= */
+function heroCard(aj) {
+  const t = hoy(), pk = periodoDe(t, aj);
+  const [d1, d2] = rango(pk);
+  const R = resumen(d1, d2, { conActivo: true });
+  const vacio = !R.dias && !R.diasPagos && !state.activo;
+  return '<article class="card"><div class="stripe" aria-hidden="true"></div>' +
+    '<p class="eyebrow">' + esc(nombrePeriodo(pk)) + ' · ' + textoRango(pk, aj) + '</p>' +
+    '<p class="big" data-live="neto">' + m0(R.neto) + '</p>' +
+    '<p class="sub">' + (vacio ? 'Todavía no cargaste días en este período.' : 'de bolsillo hasta ahora (estimado)') + (R.estimado ? ' · <span class="tag">valores estimados</span>' : '') + '</p>' +
+    '<div class="stats"><span><b data-live="horas">' + hTxt(R.min) + '</b> trabajadas</span><span><b>' + R.dias + '</b> ' + (R.dias === 1 ? 'día' : 'días') + '</span>' +
+    '<span>Cobrás el <b>' + fLarga(cobroDe(pk, aj)) + '</b></span></div></article>';
+}
+function duracionTxt(a) { const m = (nowMin() - toMin(a.entrada) + 1440) % 1440; return Math.floor(m / 60) + ':' + pad(m % 60); }
+function fichajeCard(aj) {
+  const t = hoy(), a = state.activo;
+  if (a && a.fecha !== t) {
+    return '<article class="card"><p class="eyebrow">Turno sin cerrar</p>' +
+      '<p class="lead">Quedó abierto el turno del <b>' + fLarga(a.fecha) + '</b> desde las <b class="mono">' + esc(a.entrada) + '</b>.</p>' +
+      '<div class="field"><label for="cerrar-salida">¿A qué hora saliste?</label><input class="input mono" type="time" id="cerrar-salida" value="' + esc(aj.horaSalida) + '"></div>' +
+      '<div class="row-btns"><button type="button" class="btn btn-primary" data-act="cerrar-abierto">Guardar salida</button><button type="button" class="btn" data-act="descartar-abierto">Descartar</button></div></article>';
+  }
+  if (a) {
+    const D = calcDia([...turnosDe(t), turnoActivoComo()], aj, tarifas());
+    return '<article class="card"><p class="eyebrow">En el trabajo desde las <span class="mono">' + esc(a.entrada) + '</span></p>' +
+      '<p class="clock" data-live="transcurrido">' + duracionTxt(a) + '</p>' +
+      '<p class="sub">Hoy vas <b data-live="hoyneto">' + m0(D.neto) + '</b> de bolsillo</p>' +
+      '<button type="button" class="btn btn-xl btn-orange" data-act="sali">Salí <span class="t" data-live="ahora">' + ahoraHM() + '</span></button>' +
+      '<div class="row-btns center"><button type="button" class="btn btn-ghost" data-act="editar-entrada">Cambiar hora de entrada</button><button type="button" class="btn btn-ghost" data-act="cancelar-entrada">Cancelar</button></div></article>';
+  }
+  const ts = turnosDe(t);
+  const fer = FERIADOS[t] ? ' · <span class="tag fer">Feriado</span>' : '';
+  if (ts.length) {
+    const D = calcDia(ts, aj, tarifas());
+    const lineas = ts.map(x => x.tipo === 'trabajo' ? esc(x.entrada) + ' → ' + esc(x.salida) : esc(etiquetaTipo(x.tipo))).join(' · ');
+    return '<article class="card"><p class="eyebrow">Hoy · ' + fLarga(t) + fer + '</p>' +
+      '<div class="today-sum"><span class="mono">' + lineas + '</span><span><b>' + (D.min ? hTxt(D.min) : (D.pago ? 'Día pago' : 'Sin pago')) + '</b>' + (D.e50 + D.e100 ? ' · ' + hTxt(D.e50 + D.e100) + ' extra' : '') + ' · <b>' + m0(D.neto) + '</b> de bolsillo</span></div>' +
+      '<div class="row-btns"><button type="button" class="btn" data-act="editar" data-id="' + esc(ts[0].id) + '">Editar</button><button type="button" class="btn" data-act="entre">Volví a entrar</button></div></article>';
+  }
+  return '<article class="card"><p class="eyebrow">Hoy · ' + fLarga(t) + fer + '</p>' +
+    '<button type="button" class="btn btn-xl btn-primary" data-act="entre">Entré <span class="t" data-live="ahora">' + ahoraHM() + '</span></button>' +
+    '<div class="row-btns center"><button type="button" class="btn btn-ghost" data-act="nuevo">Cargar un día a mano</button></div></article>';
+}
+function semanaCard(aj) {
+  const t = hoy(), l = lunesDe(t), dias = [0, 1, 2, 3, 4, 5, 6].map(i => addDays(l, i));
+  const R = resumen(dias[0], dias[6], { conActivo: true });
+  let maxM = 12 * 60;
+  for (const D of R.porDia.values()) maxM = Math.max(maxM, D.min);
+  const cols = dias.map(f => {
+    const D = R.porDia.get(f);
+    const n = D ? D.normal + D.normalFer : 0, x = D ? D.e50 + D.e100 : 0;
+    const lbl = D ? (D.min ? nf1.format(D.min / 60) : (D.pago ? 'pago' : '–')) : '';
+    return '<div class="wd' + (f === t ? ' hoy' : '') + '"><b>' + lbl + '</b><div class="bar" aria-hidden="true"><i class="n" style="height:' + (n / maxM * 100).toFixed(1) + '%"></i><i class="x" style="height:' + (x / maxM * 100).toFixed(1) + '%"></i></div><span class="lbl-d">' + INI[dow(f)] + ' ' + (+f.slice(8)) + '</span></div>';
+  }).join('');
+  return '<article class="card"><div class="split"><h2 class="sec-title">Esta semana</h2><span class="num"><b>' + hTxt(R.min) + '</b> · ' + m0(R.neto) + '</span></div>' +
+    '<div class="week" role="img" aria-label="Horas por día de esta semana">' + cols + '</div>' +
+    '<div class="legend"><span><i class="sw n"></i>Normales</span><span><i class="sw x"></i>Extra</span></div></article>';
+}
+function bannerCopia() {
+  const n = Object.keys(state.turnos).length;
+  if (n < 3) return '';
+  if (state.ultimaCopia && Date.now() - state.ultimaCopia < 7 * 864e5) return '';
+  return '<div class="banner"><p><b>Tus días están solo en este navegador.</b> Si borrás los datos o cambiás de celular, se pierden. Guardá una copia cada semana.</p><div class="row-btns"><button type="button" class="btn btn-primary" data-act="copia">Guardar copia</button></div></div>';
+}
+function renderHoy() {
+  const aj = AJ();
+  $('tab-hoy').innerHTML = bannerCopia() + heroCard(aj) + fichajeCard(aj) + semanaCard(aj);
+}
+
+/* ================= Interfaz: Días ================= */
+function etiquetaTipo(t) { return { trabajo: 'Trabajé', enfermedad: 'Enfermedad con certificado', feriado: 'Feriado pago', falta: 'Falta' }[t] || t; }
+function renderDias() {
+  const aj = AJ(), tl = tarifas(), t = hoy();
+  const todos = Object.values(state.turnos);
+  const fechas = new Set(todos.map(x => x.fecha));
+  const ghosts = aj.ingreso ? Object.keys(FERIADOS).filter(f => f >= aj.ingreso && f <= t && !fechas.has(f)) : [];
+  const keys = [...new Set([...fechas, ...ghosts])].sort().reverse();
+  let html = '<div class="row-btns"><button type="button" class="btn btn-primary btn-block" data-act="nuevo">+ Cargar un día</button></div>';
+  if (!keys.length) {
+    html += '<div class="card empty"><h2 class="sec-title">Todavía no hay días cargados</h2><p class="hint">Fichá con «Entré» cuando llegues, o cargá a mano los días que ya trabajaste.</p></div>';
+    $('tab-dias').innerHTML = html; return;
+  }
+  // Descanso entre jornadas: salida anterior → entrada siguiente
+  const trab = todos.filter(x => x.tipo === 'trabajo' && x.entrada && x.salida).map(x => {
+    const a = fromISO(x.fecha).getTime() / 6e4 - 720 + toMin(x.entrada);
+    let b = fromISO(x.fecha).getTime() / 6e4 - 720 + toMin(x.salida); if (b <= a) b += 1440;
+    return { id: x.id, fecha: x.fecha, a, b };
+  }).sort((p, q) => p.a - q.a);
+  const descanso = new Map();
+  for (let i = 1; i < trab.length; i++) { const gap = trab[i].a - trab[i - 1].b; if (gap >= 0 && gap < 720) descanso.set(trab[i].fecha, gap); }
+  const semanas = new Map();
+  for (const f of keys) { const l = lunesDe(f); if (!semanas.has(l)) semanas.set(l, []); semanas.get(l).push(f); }
+  for (const [l, fs] of semanas) {
+    const dom = addDays(l, 6);
+    const R = resumen(l, dom);
+    const mesTxt = l.slice(5, 7) === dom.slice(5, 7) ? (+l.slice(8)) + ' al ' + (+dom.slice(8)) + ' de ' + MESES[+dom.slice(5, 7) - 1] : dm(l) + ' al ' + dm(dom);
+    html += '<div class="weekhead"><h3>Semana del ' + mesTxt + '</h3><span>' + hTxt(R.min) + ' · ' + m0(R.neto) + '</span></div><div class="daylist">';
+    for (const f of fs) {
+      const ts = turnosDe(f);
+      if (!ts.length) {
+        html += '<div class="dayrow ghost"><div class="dnum"><small>' + DIAS3[dow(f)] + '</small><b>' + (+f.slice(8)) + '</b></div><div class="dmid"><button type="button" class="ghostbtn" data-act="nuevo" data-fecha="' + f + '" data-tipo="feriado">Feriado: ' + esc(FERIADOS[f]) + '. <u>Si no lo trabajaste, cargalo como día pago.</u></button></div><div></div></div>';
+        continue;
+      }
+      const D = calcDia(ts, aj, tl);
+      const lines = ts.map(x => '<button type="button" class="tline' + (x.tipo === 'trabajo' ? '' : ' lbl') + '" data-act="editar" data-id="' + esc(x.id) + '">' + (x.tipo === 'trabajo' ? esc(x.entrada) + ' – ' + esc(x.salida) : esc(etiquetaTipo(x.tipo))) + '</button>').join('');
+      const tags = [];
+      if (D.e50 + D.e100) tags.push('<span class="tag x">' + hTxt(D.e50 + D.e100) + ' extra' + (D.e100 && !D.e50 ? ' al 100%' : '') + '</span>');
+      if (D.fer || FERIADOS[f]) tags.push('<span class="tag fer">Feriado</span>');
+      else if (NO_LABORABLES[f]) tags.push('<span class="tag">No laborable</span>');
+      if (D.tarde) tags.push('<span class="tag warn">Tarde ' + hTxt(D.tarde) + '</span>');
+      if (descanso.has(f)) tags.push('<span class="tag warn">Descanso de ' + hTxt(descanso.get(f)) + '</span>');
+      if (D.estimado) tags.push('<span class="tag">valor estimado</span>');
+      const notas = ts.filter(x => x.nota).map(x => '<p class="note">' + esc(x.nota) + '</p>').join('');
+      const horas = D.min ? hTxt(D.min) : (D.pago ? 'día pago' : 'sin pago');
+      html += '<div class="dayrow"><div class="dnum"><small>' + DIAS3[dow(f)] + '</small><b>' + (+f.slice(8)) + '</b></div>' +
+        '<div class="dmid">' + lines + (tags.length ? '<div class="tags">' + tags.join('') + '</div>' : '') + notas + '</div>' +
+        '<div class="amt"><b>' + m0(D.neto) + '</b><small>' + horas + '</small></div></div>';
+    }
+    html += '</div>';
+  }
+  html += '<p class="hint">Tocá el horario de un día para corregirlo o borrarlo. Los montos son de bolsillo, estimados.</p>';
+  $('tab-dias').innerHTML = html;
+}
+
+/* ================= Interfaz: Cobro ================= */
+function unico(set) { return set.size === 1 ? [...set][0] : null; }
+function renderCobro() {
+  const aj = AJ(), t = hoy();
+  const keys = listaPeriodos(aj);
+  if (!ui.periodo || !keys.includes(ui.periodo)) ui.periodo = periodoDe(t, aj);
+  const pk = ui.periodo, i = keys.indexOf(pk);
+  const [d1, d2] = rango(pk);
+  const actual = pk === periodoDe(t, aj);
+  const R = resumen(d1, d2, { conActivo: actual });
+  const vh = unico(R.vhs);
+  const ln = (k, det, v, cls) => '<div class="ln' + (cls ? ' ' + cls : '') + '"><span class="k">' + k + (det ? '<small>' + det + '</small>' : '') + '</span><span class="v">' + v + '</span></div>';
+  let rec = '<div class="rs">Remunerativo (con descuentos)</div>';
+  rec += ln('Horas normales', hDec(R.normal) + (vh ? ' × ' + m2(vh) : ''), m2(R.remN));
+  if (R.normalFer) rec += ln('Horas en feriado (al doble)', hDec(R.normalFer) + (vh ? ' × ' + m2(vh * 2) : ''), m2(R.remF));
+  rec += ln('Extras al ' + aj.recargoComun + '%', hDec(R.e50) + (vh ? ' × ' + m2(vh * (1 + aj.recargoComun / 100)) : ''), m2(R.rem50));
+  rec += ln('Extras al ' + aj.recargoEspecial + '%', hDec(R.e100) + (vh ? ' × ' + m2(vh * (1 + aj.recargoEspecial / 100)) : ''), m2(R.rem100));
+  if (R.remPagos) rec += ln('Días pagos sin trabajar', R.diasPagos + (R.diasPagos === 1 ? ' día' : ' días') + ' (feriado o enfermedad)', m2(R.remPagos));
+  rec += ln('Total remunerativo', '', m2(R.rem), 'tot');
+  rec += '<div class="rs">Descuentos</div>';
+  rec += ln('Jubilación, PAMI y obra social', nf1.format(aj.aportes) + '%', '− ' + m2(R.aportes), 'neg');
+  if (aj.sindical) rec += ln('Aporte sindical', nf1.format(aj.sindical) + '%', '− ' + m2(R.sindical), 'neg');
+  rec += '<div class="rs">No remunerativo (sin descuentos)</div>';
+  const cu = unico(R.comidas), eu = unico(R.especiales);
+  rec += ln('Comida', R.dias + (R.dias === 1 ? ' día' : ' días') + (cu ? ' × ' + m2(cu) : ''), m2(R.comida));
+  rec += ln('Viático especial', R.dias + (R.dias === 1 ? ' día' : ' días') + (eu ? ' × ' + m2(eu) : ''), m2(R.especial));
+  rec += '<div class="neto"><span>Neto estimado</span><b>' + m2(R.neto) + '</b></div>';
+
+  const r = state.recibos[pk];
+  const netoRec = r && r.neto != null && Number.isFinite(+r.neto) ? +r.neto : null;
+  let diff = '';
+  if (netoRec != null) {
+    const d = R.neto - netoRec;
+    diff = Math.abs(d) < 1 ? '<p class="diff ok">Coincide con tu recibo.</p>'
+      : '<p class="diff bad">La app calculó <b>' + m2(Math.abs(d)) + (d > 0 ? ' más' : ' menos') + '</b> que tu recibo. Revisá las horas y los valores en Ajustes.</p>';
+  }
+  const usadas = [...R.tarifasUsadas.values()].sort((a, b) => a.desde < b.desde ? -1 : 1);
+  const tarTxt = usadas.length ? usadas.map(x => '<p class="hint">Desde ' + fFull(x.desde) + ': jornal ' + m2(x.jornal) + ', comida ' + m2(x.comida) + ', viático ' + m2(x.especial) + (x.estimado ? ' <span class="tag">estimado</span>' : '') + (x.propia ? ' <span class="tag">cargado por vos</span>' : '') + '</p>').join('') : '<p class="hint">Todavía no hay días en este período.</p>';
+
+  let html = '<div class="pnav"><button type="button" data-act="per" data-d="-1" aria-label="Período anterior"' + (i <= 0 ? ' disabled' : '') + '>‹</button>' +
+    '<div><h2>' + esc(cap(nombrePeriodo(pk))) + '</h2><p class="hint">' + textoRango(pk, aj) + ' · cobro estimado el ' + fLarga(cobroDe(pk, aj)) + ' (' + aj.diaCobro + '.º día hábil)</p></div>' +
+    '<button type="button" data-act="per" data-d="1" aria-label="Período siguiente"' + (i >= keys.length - 1 ? ' disabled' : '') + '>›</button></div>';
+  html += '<article class="card"><div class="rec">' + rec + '</div>' + (R.estimado ? '<p class="hint">Este período usa valores estimados del acuerdo. Cuando tengas el recibo, corregilos en Ajustes.</p>' : '') + '</article>';
+  html += '<article class="card"><h2 class="sec-title">Comparar con tu recibo</h2><div class="field"><label for="rec-neto">Neto que cobraste en este período</label><div class="suf"><span>$</span><input class="input mono" id="rec-neto" inputmode="decimal" autocomplete="off" placeholder="0,00" value="' + (netoRec != null ? esc(nf2.format(netoRec)) : '') + '"></div></div>' + diff + '</article>';
+  html += liquidacionCard(aj);
+  html += '<article class="card"><h2 class="sec-title">Valores usados</h2>' + tarTxt + '<p class="hint">Valor hora = jornal ÷ ' + aj.horasJornada + '. La comida y el viático especial se pagan una vez por día trabajado.</p></article>';
+  $('tab-cobro').innerHTML = html;
+}
+function liquidacionCard(aj) {
+  if (!aj.ingreso) return '';
+  const t = hoy(), y = t.slice(0, 4), sem1 = t.slice(5, 7) <= '06';
+  const s1 = sem1 ? y + '-01-01' : y + '-07-01', s2 = sem1 ? y + '-06-30' : y + '-12-31';
+  const desde = aj.ingreso > s1 ? aj.ingreso : s1;
+  const Rs = resumen(desde, s2);
+  const Rt = resumen(aj.ingreso, t);
+  const diasComputables = Rt.dias + Rt.diasPagos;
+  const vac = diasComputables / 20;
+  const jornal = tarifaPara(t).jornal;
+  return '<article class="card"><h2 class="sec-title">Para la liquidación final</h2>' +
+    '<dl class="kv"><dt>Aguinaldo de ' + (sem1 ? 'junio' : 'diciembre') + ' que vas sumando</dt><dd>' + m0(Rs.rem / 12) + '</dd>' +
+    '<dt>Vacaciones ganadas (' + diasComputables + ' días trabajados)</dt><dd>' + nfd.format(vac) + (vac === 1 ? ' día' : ' días') + ' ≈ ' + m0(vac * jornal) + '</dd></dl>' +
+    '<p class="hint">Estimación con la regla general de la ley: el aguinaldo es un doceavo de lo remunerativo y con menos de 6 meses te toca 1 día de vacaciones cada 20 trabajados. Son montos brutos; los calcula la agencia al terminar el contrato.</p></article>';
+}
+
+/* ================= Interfaz: Ajustes ================= */
+function segHTML(key, opts, val) {
+  return '<div class="seg" role="group">' + opts.map(([v, l]) => '<button type="button" data-ajseg="' + key + '" data-v="' + esc(v) + '" aria-pressed="' + (String(val) === String(v)) + '">' + esc(l) + '</button>').join('') + '</div>';
+}
+function numHTML(key, label, val, suf, hint) {
+  return '<div class="field"><label for="aj-' + key + '">' + label + '</label><div class="suf"><input class="input mono" id="aj-' + key + '" data-aj="' + key + '" inputmode="decimal" autocomplete="off" value="' + esc(nf2.format(val).replace(/,00$/, '')) + '">' + (suf ? '<span>' + suf + '</span>' : '') + '</div>' + (hint ? '<p class="hint">' + hint + '</p>' : '') + '</div>';
+}
+function renderAjustes() {
+  const aj = AJ(), tl = tarifas(), vig = tarifaPara(hoy(), tl);
+  const tarHTML = tl.map(x => '<div class="tarifa' + (x === vig ? ' vig' : '') + '">' +
+    '<div class="tarifa-head"><p><b>Desde el ' + fFull(x.desde) + '</b>' + (x === vig ? ' · vigente' : '') + '</p><button type="button" class="btn btn-ghost" data-act="tarifa" data-desde="' + x.desde + '">Editar</button></div>' +
+    '<dl class="vals"><dt>Jornal</dt><dd>' + m2(x.jornal) + '</dd><dt>Hora</dt><dd>' + m2(x.jornal / aj.horasJornada) + '</dd><dt>Comida</dt><dd>' + m2(x.comida) + '</dd><dt>Viático</dt><dd>' + m2(x.especial) + '</dd></dl>' +
+    '<div class="tags">' + (x.estimado ? '<span class="tag">estimado</span>' : '') + (x.propia ? '<span class="tag">cargado por vos</span>' : '') + '<span class="note">' + esc(x.nota || '') + '</span></div></div>').join('');
+  const modoTxt = 'Se guardan solo en este navegador y nadie más los ve. Abrí la app siempre desde el mismo lugar: en otro navegador o en otro celular empieza vacía. Si borrás los datos del navegador, se pierden, así que guardá una copia cada semana.';
+  const ult = state.ultimaCopia ? 'Última copia: ' + fFull(toISO(new Date(state.ultimaCopia))) + '.' : 'Todavía no guardaste ninguna copia.';
+  $('tab-ajustes').innerHTML =
+    '<article class="card"><h2 class="sec-title">Valores del convenio</h2><p class="hint">Peón, convenio de Camioneros (CCT 40/89). Corregilos cuando tengas el recibo.</p><div>' + tarHTML + '</div>' +
+    '<button type="button" class="btn" data-act="tarifa">+ Cargar un aumento</button></article>' +
+
+    '<article class="card"><h2 class="sec-title">Horario</h2>' +
+    '<div class="grid2"><div class="field"><label for="aj-horaEntrada">Entrada</label><input class="input mono" type="time" id="aj-horaEntrada" data-aj="horaEntrada" value="' + aj.horaEntrada + '"></div>' +
+    '<div class="field"><label for="aj-horaSalida">Salida del turno</label><input class="input mono" type="time" id="aj-horaSalida" data-aj="horaSalida" value="' + aj.horaSalida + '"></div></div>' +
+    numHTML('horasJornada', 'Horas de la jornada', aj.horasJornada, 'h') +
+    '<div class="field"><span class="lbl">Desde cuándo cuentan las extras</span>' + segHTML('modo', [['salida', 'Desde la salida del turno'], ['total', 'Después de ' + aj.horasJornada + ' h trabajadas']], aj.modo) +
+    '<p class="hint">Si llegás tarde: con la primera opción te descuentan el tiempo y las extras igual arrancan a las ' + aj.horaSalida + '; con la segunda, primero completás las ' + aj.horasJornada + ' h.</p></div>' +
+    numHTML('tolerancia', 'Tolerancia de llegada tarde', aj.tolerancia, 'min', 'Si llegás dentro de estos minutos, no te descuentan nada.') +
+    '<div class="field"><span class="lbl">Si llegás tarde, te descuentan</span>' + segHTML('bloqueTarde', [[1, 'Los minutos justos'], [15, 'De a 15 min'], [30, 'De a 30 min'], [60, 'De a 1 h']], aj.bloqueTarde) + '</div>' +
+    '<div class="field"><span class="lbl">Las extras se cuentan</span>' + segHTML('redondeo', [[1, 'Por minuto'], [15, 'De a 15 min'], [30, 'De a 30 min'], [60, 'Por hora completa']], aj.redondeo) + '</div>' +
+    '</article>' +
+
+    '<article class="card"><h2 class="sec-title">Recargos y descuentos</h2>' +
+    '<div class="grid2">' + numHTML('recargoComun', 'Extras días comunes', aj.recargoComun, '%') + numHTML('recargoEspecial', 'Sábado desde 13 h, domingo y feriado', aj.recargoEspecial, '%') + '</div>' +
+    '<div class="grid2">' + numHTML('aportes', 'Jubilación, PAMI y obra social', aj.aportes, '%') + numHTML('sindical', 'Aporte sindical', aj.sindical, '%') + '</div>' +
+    '</article>' +
+
+    '<article class="card"><h2 class="sec-title">Cobro</h2>' +
+    '<div class="field"><span class="lbl">Te pagan</span>' + segHTML('periodo', [['mensual', 'Por mes'], ['quincenal', 'Por quincena']], aj.periodo) + '</div>' +
+    '<div class="grid2">' + numHTML('diaCobro', 'Día hábil de cobro', aj.diaCobro, '.º') +
+    '<div class="field"><label for="aj-ingreso">Fecha de ingreso</label><input class="input" type="date" id="aj-ingreso" data-aj="ingreso" value="' + esc(aj.ingreso) + '"></div></div>' +
+    '<button type="button" class="btn" data-act="reset-aj">Volver a los ajustes iniciales</button></article>' +
+
+    '<article class="card" id="datos"><h2 class="sec-title">Tus datos</h2><p class="lead">' + modoTxt + '</p><p class="hint">' + ult + '</p>' +
+    '<div class="row-btns"><button type="button" class="btn btn-primary" data-act="copia">Guardar copia</button><button type="button" class="btn" data-act="importar">Cargar copia</button><button type="button" class="btn" data-act="csv">Exportar para Excel</button></div>' +
+    '<button type="button" class="btn btn-ghost btn-danger" data-act="borrar-todo" style="justify-self:start">Borrar todos mis días</button></article>' +
+
+    (window.claude ? '' : '<article class="card"><h2 class="sec-title">Tenela como app</h2><p class="hint"><b>Android (Chrome):</b> menú ⋮ → «Agregar a la pantalla principal» o «Instalar app».</p><p class="hint"><b>iPhone (Safari):</b> botón Compartir → «Agregar a inicio».</p><p class="hint">Una vez que la abriste, funciona aunque no tengas internet.</p></article>') +
+
+    '<article class="card"><h2 class="sec-title">Cómo calcula</h2><p class="hint">Valor hora = jornal ÷ horas de la jornada. Extras: ' + aj.recargoComun + '% de lunes a sábado hasta las 13 h y ' + aj.recargoEspecial + '% los sábados desde las 13, domingos y feriados. Un feriado trabajado se paga doble. La comida y el viático especial se pagan una vez por día trabajado y no tienen descuentos. Todo es una estimación hasta que lo compares con tu recibo.</p></article>';
+}
+
+/* ================= Editor de un día ================= */
+let ed = null;
+function ultimoTrabajo() { return Object.values(state.turnos).filter(x => x.tipo === 'trabajo' && x.entrada && x.salida).sort((a, b) => (a.fecha + a.entrada) < (b.fecha + b.entrada) ? 1 : -1)[0] || null; }
+function abrirEditor(o) {
+  o = o || {};
+  const aj = AJ();
+  const t = o.id ? state.turnos[o.id] : null;
+  const u = ultimoTrabajo();
+  ed = { id: t ? t.id : null, d: t ? { ...t } : { fecha: o.fecha || hoy(), tipo: o.tipo || 'trabajo', entrada: (u && u.entrada) || aj.horaEntrada, salida: (u && u.salida) || aj.horaSalida, pausa: 0, feriado: null, te: '', ts: '', nota: '' }, err: '', conf: false };
+  renderEditor();
+}
+function cerrarEditor() { ed = null; $('layer').innerHTML = ''; document.body.classList.remove('sheet-open'); }
+function previewHTML() {
+  const aj = AJ(), d = ed.d;
+  if (d.tipo === 'trabajo' && (!isHM(d.entrada) || !isHM(d.salida))) return '<span class="hint">Completá la entrada y la salida.</span>';
+  const D = calcDia([{ ...d, id: '_prev' }], aj, tarifas());
+  if (d.tipo === 'falta') return '<b>Sin pago</b><span class="hint">Un día de falta no se cobra.</span>';
+  if (d.tipo !== 'trabajo') return '<b>' + m0(D.neto) + ' de bolsillo</b><span class="hint">Se paga el jornal (' + m2(D.rem) + ' bruto), sin comida ni viático.</span>';
+  const partes = [hTxt(D.normal + D.normalFer) + ' normales'];
+  if (D.e50) partes.push(hTxt(D.e50) + ' extra al ' + aj.recargoComun + '%');
+  if (D.e100) partes.push(hTxt(D.e100) + ' extra al ' + aj.recargoEspecial + '%');
+  return '<b>' + m0(D.neto) + ' de bolsillo</b><span>' + partes.join(' + ') + '</span>' + (D.tarde ? '<span class="hint">Llegada tarde: ' + hTxt(D.tarde) + ' de descuento.</span>' : '') + (D.fer ? '<span class="hint">Feriado: se paga doble.</span>' : '');
+}
+function renderEditor() {
+  if (!ed) return;
+  const d = ed.d, aj = AJ();
+  const ferAuto = !!FERIADOS[d.fecha], ferVal = d.feriado === null ? ferAuto : d.feriado;
+  const otro = turnosDe(d.fecha).some(x => x.id !== ed.id);
+  const tipos = [['trabajo', 'Trabajé'], ['enfermedad', 'Enfermedad con certificado'], ['feriado', 'Feriado no trabajado'], ['falta', 'Falté']];
+  const trabajo = d.tipo === 'trabajo';
+  document.body.classList.add('sheet-open');
+  $('layer').innerHTML = '<div class="scrim" id="ed-scrim"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="ed-t">' +
+    '<div class="sheet-head"><h2 class="sec-title" id="ed-t">' + (ed.id ? 'Editar día' : 'Cargar un día') + '</h2><button type="button" class="btn btn-ghost" data-ed="cerrar">Cerrar</button></div>' +
+    '<div class="field"><label for="ed-fecha">Fecha</label><input class="input" type="date" id="ed-fecha" value="' + esc(d.fecha) + '"></div>' +
+    (FERIADOS[d.fecha] ? '<p class="hint">Es feriado: ' + esc(FERIADOS[d.fecha]) + '.</p>' : (NO_LABORABLES[d.fecha] ? '<p class="hint">' + esc(NO_LABORABLES[d.fecha]) + '.</p>' : '')) +
+    (otro ? '<p class="hint">Ya hay otro registro ese día. Se suman los dos.</p>' : '') +
+    '<div class="field"><span class="lbl">Qué pasó ese día</span><div class="seg" role="group">' + tipos.map(([v, l]) => '<button type="button" data-edtipo="' + v + '" aria-pressed="' + (d.tipo === v) + '">' + l + '</button>').join('') + '</div></div>' +
+    (trabajo ? '<div class="grid2"><div class="field"><label for="ed-entrada">Entrada</label><input class="input mono" type="time" id="ed-entrada" value="' + esc(d.entrada) + '"></div>' +
+      '<div class="field"><label for="ed-salida">Salida</label><input class="input mono" type="time" id="ed-salida" value="' + esc(d.salida) + '"></div></div>' +
+      '<div class="chips" aria-label="Salidas rápidas">' + [aj.horaSalida, '18:00'].filter((v, i, a) => a.indexOf(v) === i).map(v => '<button type="button" data-edsal="' + v + '">Salí ' + v + '</button>').join('') + '</div>' : '') +
+    '<div class="preview" id="ed-prev" aria-live="polite">' + previewHTML() + '</div>' +
+    (ed.err ? '<p class="err">' + esc(ed.err) + '</p>' : '') +
+    '<details class="more" id="ed-more"' + (ed.more ? ' open' : '') + '><summary>Más opciones</summary>' +
+      (trabajo ? '<label class="check"><input type="checkbox" id="ed-feriado"' + (ferVal ? ' checked' : '') + '> Fue feriado (se paga doble)</label>' +
+      '<div class="field"><label for="ed-pausa">Pausa sin goce</label><div class="suf"><input class="input mono" id="ed-pausa" inputmode="numeric" value="' + esc(d.pausa || 0) + '"><span>min</span></div></div>' +
+      '<div class="grid2"><div class="field"><label for="ed-te">Ese día el turno empezaba</label><input class="input mono" type="time" id="ed-te" value="' + esc(d.te || '') + '"></div>' +
+      '<div class="field"><label for="ed-ts">y terminaba</label><input class="input mono" type="time" id="ed-ts" value="' + esc(d.ts || '') + '"></div></div>' +
+      '<p class="hint">Dejalo vacío si fue tu horario de siempre (' + aj.horaEntrada + ' a ' + aj.horaSalida + ').</p>' : '') +
+      '<div class="field"><label for="ed-nota">Nota</label><textarea class="input" id="ed-nota" maxlength="300">' + esc(d.nota || '') + '</textarea></div>' +
+    '</details>' +
+    '<div class="row-btns">' +
+      '<button type="button" class="btn btn-primary" data-ed="guardar">Guardar</button>' +
+      (ed.id ? '' : '<button type="button" class="btn" data-ed="guardar-otro">Guardar y cargar el siguiente</button>') +
+      (ed.id ? '<button type="button" class="btn ' + (ed.conf ? 'btn-danger-fill' : 'btn-danger') + '" data-ed="borrar">' + (ed.conf ? '¿Seguro? Borrar' : 'Borrar este día') + '</button>' : '') +
+    '</div></div></div>';
+}
+function leerEditor() {
+  if (!ed) return;
+  const v = id => { const e = $(id); return e ? e.value : null; };
+  const d = ed.d;
+  const f = v('ed-fecha'); if (isISO(f)) d.fecha = f;
+  if (d.tipo === 'trabajo') {
+    const en = v('ed-entrada'), sa = v('ed-salida');
+    if (en !== null) d.entrada = en;
+    if (sa !== null) d.salida = sa;
+    const p = v('ed-pausa'); if (p !== null) d.pausa = Math.max(0, Math.round(parseNum(p) || 0));
+    const te = v('ed-te'), ts = v('ed-ts'); if (te !== null) d.te = te || ''; if (ts !== null) d.ts = ts || '';
+    const fe = $('ed-feriado'); if (fe) { const auto = !!FERIADOS[d.fecha]; d.feriado = fe.checked === auto ? null : fe.checked; }
+  }
+  const n = v('ed-nota'); if (n !== null) d.nota = n.slice(0, 300);
+}
+function guardarEditor(otro) {
+  leerEditor();
+  const d = ed.d;
+  if (!isISO(d.fecha)) { ed.err = 'Elegí una fecha.'; renderEditor(); return; }
+  if (d.tipo === 'trabajo' && (!isHM(d.entrada) || !isHM(d.salida))) { ed.err = 'Completá la hora de entrada y de salida.'; renderEditor(); return; }
+  const id = ed.id || newId();
+  const rec = { id, fecha: d.fecha, tipo: d.tipo, entrada: d.tipo === 'trabajo' ? d.entrada : '', salida: d.tipo === 'trabajo' ? d.salida : '', pausa: d.tipo === 'trabajo' ? (d.pausa || 0) : 0, feriado: d.tipo === 'trabajo' ? d.feriado : null, te: d.tipo === 'trabajo' ? (d.te || '') : '', ts: d.tipo === 'trabajo' ? (d.ts || '') : '', nota: d.nota || '', mod: Date.now() };
+  state.turnos[id] = rec;
+  persist();
+  if (otro) {
+    ed = { id: null, d: { ...rec, fecha: addDays(rec.fecha, 1), nota: '', feriado: null }, err: '', conf: false };
+    renderEditor();
+    toast('Guardado el ' + fCorta(rec.fecha));
+  } else {
+    cerrarEditor();
+    toast('Guardado el ' + fCorta(rec.fecha));
+  }
+}
+function borrarTurno(id) {
+  const t = state.turnos[id]; if (!t) return;
+  delete state.turnos[id]; state.borrados[id] = Date.now();
+  persist();
+  toast('Borraste el ' + fCorta(t.fecha), { label: 'Deshacer', fn: () => { state.turnos[id] = { ...t, mod: Date.now() + 1 }; delete state.borrados[id]; persist(); } });
+}
+
+/* ================= Aumentos / valores ================= */
+async function editarTarifa(desde) {
+  const tl = tarifas(), cur = desde ? tl.find(x => x.desde === desde) : null;
+  const base = cur || tarifaPara(hoy(), tl);
+  const nextMonth = (() => { const t = hoy(); const y = +t.slice(0, 4), m = +t.slice(5, 7); return (m === 12 ? (y + 1) + '-01' : y + '-' + pad(m + 1)) + '-01'; })();
+  const html = '<div class="field"><label for="tf-desde">Desde</label><input class="input" type="date" id="tf-desde" value="' + (desde || nextMonth) + '"' + (desde ? ' disabled' : '') + '></div>' +
+    (desde ? '' : '<div class="field"><label for="tf-pct">Aumento sobre los valores vigentes</label><div class="suf"><input class="input mono" id="tf-pct" inputmode="decimal" placeholder="1,7"><span>%</span></div><p class="hint">O escribí los valores exactos abajo.</p></div>') +
+    '<div class="field"><label for="tf-jornal">Jornal</label><div class="suf"><span>$</span><input class="input mono" id="tf-jornal" inputmode="decimal" value="' + nf2.format(base.jornal) + '"></div></div>' +
+    '<div class="grid2"><div class="field"><label for="tf-comida">Comida</label><div class="suf"><span>$</span><input class="input mono" id="tf-comida" inputmode="decimal" value="' + nf2.format(base.comida) + '"></div></div>' +
+    '<div class="field"><label for="tf-especial">Viático especial</label><div class="suf"><span>$</span><input class="input mono" id="tf-especial" inputmode="decimal" value="' + nf2.format(base.especial) + '"></div></div></div>' +
+    (cur && (cur.propia || cur.estimado) ? '<button type="button" class="btn btn-ghost btn-danger" id="tf-quitar" style="justify-self:start">' + (cur.propia && TARIFAS_BASE.some(b => b.desde === cur.desde) ? 'Volver al valor del acuerdo' : 'Quitar estos valores') + '</button>' : '');
+  let quitar = false, vals = null;
+  const ok = await dialogo({
+    titulo: desde ? 'Valores desde el ' + fFull(desde) : 'Cargar un aumento', ok: 'Guardar', html,
+    onMount: sc => {
+      const pct = sc.querySelector('#tf-pct');
+      if (pct) pct.addEventListener('input', () => {
+        const p = parseNum(pct.value); if (!Number.isFinite(p)) return;
+        const k = 1 + p / 100;
+        sc.querySelector('#tf-jornal').value = nf2.format(r2(base.jornal * k));
+        sc.querySelector('#tf-comida').value = nf2.format(r2(base.comida * k));
+        sc.querySelector('#tf-especial').value = nf2.format(r2(base.especial * k));
+      });
+      const q = sc.querySelector('#tf-quitar');
+      if (q) q.addEventListener('click', () => { quitar = true; sc.querySelector('[data-r="1"]').click(); });
+      sc.querySelector('[data-r="1"]').addEventListener('click', () => {
+        vals = { desde: sc.querySelector('#tf-desde').value, jornal: parseNum(sc.querySelector('#tf-jornal').value), comida: parseNum(sc.querySelector('#tf-comida').value), especial: parseNum(sc.querySelector('#tf-especial').value) };
+      }, true);
+    }
+  });
+  if (!ok || !vals) return;
+  const k = desde || vals.desde;
+  if (!isISO(k)) { toast('Elegí desde qué fecha rige.'); return; }
+  if (quitar) {
+    const esBase = TARIFAS_BASE.some(b => b.desde === k);
+    state.tarifas[k] = cur && cur.propia ? { borrada: true, mod: Date.now() } : (esBase ? { oculta: true, mod: Date.now() } : { borrada: true, mod: Date.now() });
+    persist(); toast('Listo'); return;
+  }
+  if (!(vals.jornal > 0) || !(vals.comida >= 0) || !(vals.especial >= 0)) { toast('Revisá los montos: tienen que ser números.'); return; }
+  state.tarifas[k] = { jornal: r2(vals.jornal), comida: r2(vals.comida), especial: r2(vals.especial), nota: 'Cargado por vos', mod: Date.now() };
+  persist(); toast('Valores guardados desde el ' + fFull(k));
+}
+
+/* ================= Copias ================= */
+async function guardarCopia() {
+  const data = JSON.stringify({ app: 'horas-sueldo', v: 1, exportado: new Date().toISOString(), estado: state }, null, 1);
+  const ok = await ofrecerArchivo('horas-sueldo-copia-' + hoy() + '.json', data);
+  if (ok) { state.ultimaCopia = Date.now(); persist(); toast('Copia guardada'); }
+}
+async function exportarCSV() {
+  const aj = AJ(), tl = tarifas();
+  const n2 = v => (Math.round(v * 100) / 100).toFixed(2).replace('.', ',');
+  const rows = [['Fecha', 'Día', 'Tipo', 'Entrada', 'Salida', 'Horas normales', 'Horas feriado', 'Extras 50%', 'Extras 100%', 'Remunerativo', 'Comida', 'Viático especial', 'Neto estimado', 'Nota']];
+  const fechas = [...new Set(Object.values(state.turnos).map(t => t.fecha))].sort();
+  for (const f of fechas) {
+    const ts = turnosDe(f), D = calcDia(ts, aj, tl);
+    rows.push([f, DIAS[dow(f)], ts.map(x => etiquetaTipo(x.tipo)).join(' + '), ts.map(x => x.entrada).filter(Boolean).join(' / '), ts.map(x => x.salida).filter(Boolean).join(' / '),
+      n2(D.normal / 60), n2(D.normalFer / 60), n2(D.e50 / 60), n2(D.e100 / 60), n2(D.rem), n2(D.comida), n2(D.especial), n2(D.neto), ts.map(x => x.nota).filter(Boolean).join(' / ')]);
+  }
+  const csv = '﻿' + rows.map(r => r.map(c => { const s = String(c); return /[;"\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }).join(';')).join('\r\n');
+  const ok = await ofrecerArchivo('horas-sueldo-' + hoy() + '.csv', csv);
+  if (ok) toast('Archivo listo');
+}
+function importarArchivo(file) {
+  const fr = new FileReader();
+  fr.onload = async () => {
+    let o = null;
+    try { o = JSON.parse(String(fr.result)); } catch (e) {}
+    const est = o && (o.estado || (o.turnos ? o : null));
+    if (!est || typeof est.turnos !== 'object') { toast('Ese archivo no es una copia de esta app.'); return; }
+    const inc = normalize(est), n = Object.keys(inc.turnos).length;
+    const ok = await dialogo({ titulo: 'Cargar copia', texto: 'La copia tiene ' + n + (n === 1 ? ' día' : ' días') + '. Se suman a los que ya tenés; si un día está en los dos lados, queda la versión más nueva.', ok: 'Cargar' });
+    if (!ok) return;
+    state = mergeStates(state, inc);
+    persist(); toast('Copia cargada');
+  };
+  fr.readAsText(file);
+}
+
+/* ================= Navegación y eventos ================= */
+const TABS = ['hoy', 'dias', 'cobro', 'ajustes'];
+function irA(tab) {
+  ui.tab = tab; saveUI();
+  for (const t of TABS) $('tab-' + t).hidden = t !== tab;
+  document.querySelectorAll('.tab').forEach(b => b.setAttribute('aria-selected', String(b.dataset.go === tab)));
+  renderCurrent();
+  window.scrollTo(0, 0);
+}
+function renderCurrent() {
+  if (ui.tab === 'hoy') renderHoy();
+  else if (ui.tab === 'dias') renderDias();
+  else if (ui.tab === 'cobro') renderCobro();
+  else renderAjustes();
+}
+function renderSoft() {
+  const a = document.activeElement;
+  if (a && a.closest && a.closest('main') && /INPUT|TEXTAREA|SELECT/.test(a.tagName)) return;
+  renderCurrent();
+}
+
+document.addEventListener('click', async e => {
+  const go = e.target.closest('[data-go]');
+  if (go) { irA(go.dataset.go); if (go.id === 'chip-store') setTimeout(() => { const d = $('datos'); if (d) d.scrollIntoView({ block: 'start' }); }, 30); return; }
+
+  // Editor
+  const edb = e.target.closest('[data-ed]');
+  if (edb && ed) {
+    const a = edb.dataset.ed;
+    if (a === 'cerrar') cerrarEditor();
+    else if (a === 'guardar') guardarEditor(false);
+    else if (a === 'guardar-otro') guardarEditor(true);
+    else if (a === 'borrar') { if (!ed.conf) { leerEditor(); ed.conf = true; renderEditor(); setTimeout(() => { if (ed && ed.conf) { ed.conf = false; renderEditor(); } }, 4000); } else { const id = ed.id; cerrarEditor(); borrarTurno(id); } }
+    return;
+  }
+  const tb = e.target.closest('[data-edtipo]');
+  if (tb && ed) { leerEditor(); ed.d.tipo = tb.dataset.edtipo; ed.err = ''; renderEditor(); return; }
+  const sb = e.target.closest('[data-edsal]');
+  if (sb && ed) { leerEditor(); ed.d.salida = sb.dataset.edsal; renderEditor(); return; }
+  if (e.target.id === 'ed-scrim') { cerrarEditor(); return; }
+
+  // Ajustes: botones segmentados
+  const sg = e.target.closest('[data-ajseg]');
+  if (sg) {
+    const k = sg.dataset.ajseg, v = sg.dataset.v;
+    state.ajustes = { ...state.ajustes, [k]: ['bloqueTarde', 'redondeo'].includes(k) ? +v : v };
+    state.ajustesMod = Date.now();
+    if (k === 'periodo') ui.periodo = null;
+    persist();
+    return;
+  }
+
+  const b = e.target.closest('[data-act]');
+  if (!b) return;
+  const act = b.dataset.act, aj = AJ();
+  if (act === 'entre') {
+    state.activo = { fecha: hoy(), entrada: ahoraHM() }; state.activoMod = Date.now(); persist();
+    toast('Entrada ' + state.activo.entrada, { label: 'Cambiar', fn: () => document.querySelector('[data-act="editar-entrada"]') && document.querySelector('[data-act="editar-entrada"]').click() });
+  } else if (act === 'sali') {
+    const a = state.activo; if (!a) return;
+    const id = newId(), sal = ahoraHM();
+    state.turnos[id] = { id, fecha: a.fecha, tipo: 'trabajo', entrada: a.entrada, salida: sal, pausa: 0, feriado: null, te: '', ts: '', nota: '', mod: Date.now() };
+    state.activo = null; state.activoMod = Date.now(); persist();
+    const D = calcDia(turnosDe(a.fecha), aj, tarifas());
+    toast('Salida ' + sal + ' · ' + hTxt(D.min) + ' · ' + m0(D.neto), { label: 'Editar', fn: () => abrirEditor({ id }) });
+  } else if (act === 'editar-entrada') {
+    const a = state.activo; if (!a) return;
+    const v = await pedirHora('Hora de entrada', a.entrada);
+    if (isHM(v) && state.activo) { state.activo = { ...state.activo, entrada: v }; state.activoMod = Date.now(); persist(); }
+  } else if (act === 'cancelar-entrada') {
+    const prev = state.activo; if (!prev) return;
+    state.activo = null; state.activoMod = Date.now(); persist();
+    toast('Cancelaste la entrada', { label: 'Deshacer', fn: () => { state.activo = prev; state.activoMod = Date.now(); persist(); } });
+  } else if (act === 'cerrar-abierto') {
+    const a = state.activo, sal = $('cerrar-salida') ? $('cerrar-salida').value : '';
+    if (!a || !isHM(sal)) { toast('Poné a qué hora saliste.'); return; }
+    const id = newId();
+    state.turnos[id] = { id, fecha: a.fecha, tipo: 'trabajo', entrada: a.entrada, salida: sal, pausa: 0, feriado: null, te: '', ts: '', nota: '', mod: Date.now() };
+    state.activo = null; state.activoMod = Date.now(); persist(); toast('Guardado el ' + fCorta(a.fecha));
+  } else if (act === 'descartar-abierto') {
+    const ok = await dialogo({ titulo: 'Descartar el turno abierto', texto: 'Se borra la entrada del ' + fLarga(state.activo.fecha) + '. Si trabajaste, mejor cargá la salida.', ok: 'Descartar', peligro: true });
+    if (ok) { state.activo = null; state.activoMod = Date.now(); persist(); }
+  } else if (act === 'nuevo') abrirEditor({ fecha: b.dataset.fecha, tipo: b.dataset.tipo });
+  else if (act === 'editar') abrirEditor({ id: b.dataset.id });
+  else if (act === 'per') {
+    const keys = listaPeriodos(aj), i = keys.indexOf(ui.periodo) + (+b.dataset.d);
+    if (i >= 0 && i < keys.length) { ui.periodo = keys[i]; renderCobro(); }
+  } else if (act === 'tarifa') editarTarifa(b.dataset.desde || null);
+  else if (act === 'copia') guardarCopia();
+  else if (act === 'csv') exportarCSV();
+  else if (act === 'importar') $('imp-file').click();
+  else if (act === 'reset-aj') {
+    const ok = await dialogo({ titulo: 'Volver a los ajustes iniciales', texto: 'Se restablecen el horario, los recargos, los descuentos y el cobro. Tus días y los valores del convenio no cambian.', ok: 'Restablecer' });
+    if (ok) { const ing = state.ajustes.ingreso; state.ajustes = ing ? { ingreso: ing } : {}; state.ajustesMod = Date.now(); persist(); toast('Ajustes restablecidos'); }
+  } else if (act === 'borrar-todo') {
+    const n = Object.keys(state.turnos).length;
+    const ok = await dialogo({ titulo: 'Borrar todos tus días', texto: 'Se borran ' + n + (n === 1 ? ' día cargado' : ' días cargados') + '. Si querés, guardá una copia antes.', ok: 'Borrar todo', peligro: true });
+    if (ok) { const ahora = Date.now(); for (const id of Object.keys(state.turnos)) state.borrados[id] = ahora; state.turnos = {}; state.activo = null; state.activoMod = ahora; state.recibos = {}; persist(); toast('Borraste todos tus días'); }
+  }
+});
+
+document.addEventListener('input', e => {
+  if (ed && e.target.closest && e.target.closest('#layer')) { leerEditor(); const p = $('ed-prev'); if (p) p.innerHTML = previewHTML(); }
+});
+document.addEventListener('change', e => {
+  const t = e.target;
+  if (ed && t.id === 'ed-fecha') { leerEditor(); renderEditor(); return; }
+  if (t.dataset && t.dataset.aj) {
+    const k = t.dataset.aj;
+    let v = t.value;
+    if (['horaEntrada', 'horaSalida'].includes(k)) { if (!isHM(v)) return; }
+    else if (k === 'ingreso') { if (v && !isISO(v)) return; }
+    else { v = parseNum(v); if (!Number.isFinite(v) || v < 0) { toast('Escribí un número.'); renderAjustes(); return; } }
+    state.ajustes = { ...state.ajustes, [k]: v }; state.ajustesMod = Date.now();
+    persist({ noRender: true });
+    if (['horasJornada', 'horaSalida', 'recargoComun', 'recargoEspecial'].includes(k)) setTimeout(renderSoft, 0);
+    toast('Guardado');
+    return;
+  }
+  if (t.id === 'rec-neto') {
+    const v = t.value.trim() === '' ? null : parseNum(t.value);
+    if (v !== null && !Number.isFinite(v)) { toast('Escribí el neto como número, por ejemplo 410.250,50'); return; }
+    state.recibos[ui.periodo] = { neto: v, mod: Date.now() };
+    persist();
+  }
+  if (t.id === 'imp-file' && t.files && t.files[0]) { importarArchivo(t.files[0]); t.value = ''; }
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && ed) cerrarEditor(); });
+document.addEventListener('toggle', e => { if (ed && e.target && e.target.id === 'ed-more') ed.more = e.target.open; }, true);
+
+// Reloj: actualiza lo que cambia con la hora sin redibujar todo
+let ultimoDia = hoy();
+setInterval(() => {
+  if (hoy() !== ultimoDia) { ultimoDia = hoy(); renderSoft(); return; }
+  if (ui.tab !== 'hoy') return;
+  document.querySelectorAll('[data-live="ahora"]').forEach(n => { n.textContent = ahoraHM(); });
+  if (state.activo && state.activo.fecha === hoy()) {
+    const aj = AJ(), pk = periodoDe(hoy(), aj), [d1, d2] = rango(pk), R = resumen(d1, d2, { conActivo: true });
+    const D = calcDia([...turnosDe(hoy()), turnoActivoComo()], aj, tarifas());
+    const set = (k, v) => document.querySelectorAll('[data-live="' + k + '"]').forEach(n => { n.textContent = v; });
+    set('transcurrido', duracionTxt(state.activo)); set('hoyneto', m0(D.neto)); set('neto', m0(R.neto)); set('horas', hTxt(R.min));
+  }
+}, 15000);
+
+/* ================= Arranque ================= */
+const cache = loadCache();
+if (cache) state = normalize(cache.estado);
+try { localStorage.setItem(CACHE_KEY + ':prueba', '1'); localStorage.removeItem(CACHE_KEY + ':prueba'); } catch (e) { guardadoOk = false; }
+irA(ui.tab);
+setChip();
+
+window.__hs = { calcTurno, calcDia, resumen, AJ, tarifas, cobroDe, rango, periodoDe, mergeStates, normalize, get state() { return state; }, mode: 'local' };
+})();
+</script>
+<script>
+if ('serviceWorker' in navigator) window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
+</script>
+</body>
+</html>
