@@ -1,0 +1,13 @@
+{
+  "name": "sueldo-hora",
+  "version": "2.0.0",
+  "description": "Fichá entrada y salida y calculá tu sueldo con el convenio de Camioneros (CCT 40/89).",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,6 +1,33 @@
 // Guarda la app para que abra sin internet. Con internet, siempre trae la última versión.
-const CACHE = 'horas-sueldo-v1';
-const ARCHIVOS = ['./', './index.html', './manifest.webmanifest', './icon.svg', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
+// Cambiá el número de CACHE si agregás o sacás archivos de la lista.
+const CACHE = 'horas-sueldo-v2';
+const ARCHIVOS = [
+  './',
+  './index.html',
+  './css/estilos.css',
+  './js/ajustes.js',
+  './js/almacenamiento.js',
+  './js/app.js',
+  './js/calculo.js',
+  './js/convenio.js',
+  './js/copias.js',
+  './js/datos.js',
+  './js/estado.js',
+  './js/interfaz.js',
+  './js/main.js',
+  './js/pantallas/ajustes.js',
+  './js/pantallas/cobro.js',
+  './js/pantallas/dias.js',
+  './js/pantallas/editor.js',
+  './js/pantallas/hoy.js',
+  './js/periodos.js',
+  './js/utilidades.js',
+  './manifest.webmanifest',
+  './icon.svg',
+  './icon-192.png',
+  './icon-512.png',
+  './apple-touch-icon.png'
+];
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ARCHIVOS)).then(() => self.skipWaiting()));
 });
